@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -14,6 +17,15 @@ from compute_fabric.queue.queue_processor import QueueProcessor
 from compute_fabric.scheduler.resource_manager import ResourceManager
 from compute_fabric.scheduler.scheduler import Scheduler
 from compute_fabric.scheduler.scoring import GPUScorer
+from compute_fabric.storage.postgres_repository import PostgresJobRepository
+
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not configured")
 
 
 app = FastAPI(
@@ -91,7 +103,9 @@ queue = PriorityJobQueue()
 queue_manager = QueueManager(queue, admission_controller)
 
 state_manager = JobStateManager()
-job_manager = JobManager()
+
+repository = PostgresJobRepository(DATABASE_URL)
+job_manager = JobManager(repository)
 
 queue_processor = QueueProcessor(
     queue_manager,
@@ -159,6 +173,8 @@ def submit_job(request: JobRequest) -> JobResponse:
         return JobResponse(
             job_id=stored_job.id,
             status=stored_job.status.value,
+            gpu_id=stored_job.gpu_id,
+            node_id=stored_job.node_id,
         )
 
     return JobResponse(

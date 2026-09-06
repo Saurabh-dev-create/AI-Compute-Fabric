@@ -11,6 +11,7 @@ from compute_fabric.queue.queue_processor import QueueProcessor
 from compute_fabric.scheduler.resource_manager import ResourceManager
 from compute_fabric.scheduler.scheduler import Scheduler
 from compute_fabric.scheduler.scoring import GPUScorer
+from compute_fabric.storage.in_memory_repository import InMemoryJobRepository
 
 
 def create_orchestrator() -> tuple[JobOrchestrator, GPUManager]:
@@ -70,8 +71,8 @@ def create_orchestrator() -> tuple[JobOrchestrator, GPUManager]:
         scheduler,
         state_manager,
     )
-
-    job_manager = JobManager()
+    repository = InMemoryJobRepository()
+    job_manager = JobManager(repository)
 
     orchestrator = JobOrchestrator(
         job_manager,

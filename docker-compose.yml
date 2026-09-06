@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: ai-compute-fabric-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: compute_fabric
+      POSTGRES_USER: compute_fabric
+      POSTGRES_PASSWORD: compute_fabric_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - compute_fabric_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  compute_fabric_postgres_data:

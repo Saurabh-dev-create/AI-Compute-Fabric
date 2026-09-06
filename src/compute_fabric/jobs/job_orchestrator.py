@@ -30,7 +30,12 @@ class JobOrchestrator:
             return None
         
 
-        return self.queue_processor.process_next()
+        decision = self.queue_processor.process_next()
+
+        if decision is not None:
+            self.job_manager.update_job(job)
+
+        return decision
 
     def start_job(self, job_id: str) -> bool:
         job = self.job_manager.get_job(job_id)
@@ -39,6 +44,7 @@ class JobOrchestrator:
             return False
 
         self.state_manager.start(job)
+        self.job_manager.update_job(job)
 
         return True
 
@@ -58,6 +64,7 @@ class JobOrchestrator:
                 return False
 
         self.state_manager.complete(job)
+        self.job_manager.update_job(job)
 
         return True
 
@@ -77,6 +84,7 @@ class JobOrchestrator:
                 return False
 
         self.state_manager.fail(job)
+        self.job_manager.update_job(job)
 
         return True
 
@@ -96,5 +104,6 @@ class JobOrchestrator:
                 return False
 
         self.state_manager.cancel(job)
+        self.job_manager.update_job(job)
 
         return True

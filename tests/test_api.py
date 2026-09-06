@@ -1,9 +1,23 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from compute_fabric.api.main import app
+from compute_fabric.api.main import app, job_manager
 
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def clean_api_test_jobs():
+    for job in job_manager.list_jobs():
+        if job.id.startswith("api-"):
+            job_manager.remove_job(job.id)
+
+    yield
+
+    for job in job_manager.list_jobs():
+        if job.id.startswith("api-"):
+            job_manager.remove_job(job.id)
 
 
 def test_root_endpoint():

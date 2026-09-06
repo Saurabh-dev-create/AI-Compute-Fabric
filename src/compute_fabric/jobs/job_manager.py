@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from compute_fabric.common.enums import JobStatus
+from compute_fabric.storage.repository import JobRepository
 
 
 @dataclass
@@ -17,17 +18,20 @@ class Job:
 
 
 class JobManager:
-    def __init__(self) -> None:
-        self._jobs: dict[str, Job] = {}
+    def __init__(self, repository: JobRepository) -> None:
+        self.repository = repository
 
     def submit_job(self, job: Job) -> None:
-        self._jobs[job.id] = job
+        self.repository.save(job)
+
+    def update_job(self, job: Job) -> None:
+        self.repository.save(job)
 
     def get_job(self, job_id: str) -> Job | None:
-        return self._jobs.get(job_id)
+        return self.repository.get(job_id)
 
     def list_jobs(self) -> list[Job]:
-        return list(self._jobs.values())
+        return self.repository.list_all()
 
     def remove_job(self, job_id: str) -> None:
-        self._jobs.pop(job_id, None)
+        self.repository.delete(job_id)
