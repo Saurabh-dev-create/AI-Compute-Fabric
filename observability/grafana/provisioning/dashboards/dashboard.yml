@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: AI Compute Fabric
+    orgId: 1
+    folder: AI Compute Fabric
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
