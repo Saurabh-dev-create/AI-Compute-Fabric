@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from compute_fabric.common.enums import GPUStatus
@@ -18,6 +18,15 @@ from compute_fabric.scheduler.resource_manager import ResourceManager
 from compute_fabric.scheduler.scheduler import Scheduler
 from compute_fabric.scheduler.scoring import GPUScorer
 from compute_fabric.storage.postgres_repository import PostgresJobRepository
+from compute_fabric.telemetry.metrics import (
+    JOB_ADMISSION_REJECTIONS,
+    JOB_LIFECYCLE_TRANSITIONS,
+    JOB_SUBMISSIONS,
+    SCHEDULING_ATTEMPTS,
+    SCHEDULING_LATENCY_SECONDS,
+    SCHEDULING_RESULTS,
+)
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 
 load_dotenv()
@@ -132,6 +141,14 @@ def root() -> dict[str, str]:
     }
 
 
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
+
 @app.get("/gpus")
 def list_gpus() -> list[GPU]:
     return gpu_manager.list_gpus()
@@ -153,15 +170,22 @@ def submit_job(request: JobRequest) -> JobResponse:
         priority=request.priority,
     )
 
+    JOB_SUBMISSIONS.inc()
+
     if not admission_controller.admit(job):
+        JOB_ADMISSION_REJECTIONS.inc()
         raise HTTPException(
             status_code=400,
             detail="Job rejected by admission controller",
         )
 
-    decision = orchestrator.submit_and_schedule(job)
+    SCHEDULING_ATTEMPTS.inc()
+
+    with SCHEDULING_LATENCY_SECONDS.time():
+        decision = orchestrator.submit_and_schedule(job)
 
     if decision is None:
+        SCHEDULING_RESULTS.labels(result="pending").inc()
         stored_job = job_manager.get_job(job.id)
 
         if stored_job is None:
@@ -176,6 +200,9 @@ def submit_job(request: JobRequest) -> JobResponse:
             gpu_id=stored_job.gpu_id,
             node_id=stored_job.node_id,
         )
+
+    SCHEDULING_RESULTS.labels(result="scheduled").inc()
+    JOB_LIFECYCLE_TRANSITIONS.labels(status=job.status.value).inc()
 
     return JobResponse(
         job_id=job.id,
@@ -226,6 +253,7 @@ def start_job(job_id: str) -> JobResponse:
         )
 
     job = job_manager.get_job(job_id)
+    JOB_LIFECYCLE_TRANSITIONS.labels(status=job.status.value).inc()
 
     return JobResponse(
         job_id=job.id,
@@ -244,6 +272,7 @@ def complete_job(job_id: str) -> JobResponse:
         )
 
     job = job_manager.get_job(job_id)
+    JOB_LIFECYCLE_TRANSITIONS.labels(status=job.status.value).inc()
 
     return JobResponse(
         job_id=job.id,
@@ -262,6 +291,7 @@ def fail_job(job_id: str) -> JobResponse:
         )
 
     job = job_manager.get_job(job_id)
+    JOB_LIFECYCLE_TRANSITIONS.labels(status=job.status.value).inc()
 
     return JobResponse(
         job_id=job.id,
@@ -280,6 +310,7 @@ def cancel_job(job_id: str) -> JobResponse:
         )
 
     job = job_manager.get_job(job_id)
+    JOB_LIFECYCLE_TRANSITIONS.labels(status=job.status.value).inc()
 
     return JobResponse(
         job_id=job.id,
