@@ -1,4 +1,4 @@
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 
 
 JOB_SUBMISSIONS = Counter(
@@ -31,4 +31,35 @@ JOB_LIFECYCLE_TRANSITIONS = Counter(
 SCHEDULING_LATENCY_SECONDS = Histogram(
     "compute_fabric_scheduling_latency_seconds",
     "Time spent attempting to schedule a job",
+)
+
+
+GPU_TOTAL_VRAM_GB = Gauge(
+    "compute_fabric_gpu_total_vram_gb",
+    "Total VRAM capacity of a GPU in gigabytes",
+    ["gpu_id", "gpu_type", "node_id"],
+)
+
+GPU_FREE_VRAM_GB = Gauge(
+    "compute_fabric_gpu_free_vram_gb",
+    "Currently available GPU VRAM in gigabytes",
+    ["gpu_id", "gpu_type", "node_id"],
+)
+
+GPU_UTILIZATION_PERCENT = Gauge(
+    "compute_fabric_gpu_utilization_percent",
+    "Current GPU utilization percentage",
+    ["gpu_id", "gpu_type", "node_id"],
+)
+
+GPU_TEMPERATURE_CELSIUS = Gauge(
+    "compute_fabric_gpu_temperature_celsius",
+    "Current GPU temperature in Celsius",
+    ["gpu_id", "gpu_type", "node_id"],
+)
+
+GPU_STATUS = Gauge(
+    "compute_fabric_gpu_status",
+    "GPU status represented as a labeled state",
+    ["gpu_id", "gpu_type", "node_id", "status"],
 )

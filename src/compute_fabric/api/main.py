@@ -18,6 +18,7 @@ from compute_fabric.scheduler.resource_manager import ResourceManager
 from compute_fabric.scheduler.scheduler import Scheduler
 from compute_fabric.scheduler.scoring import GPUScorer
 from compute_fabric.storage.postgres_repository import PostgresJobRepository
+from compute_fabric.telemetry.gpu_metrics import update_gpu_metrics
 from compute_fabric.telemetry.metrics import (
     JOB_ADMISSION_REJECTIONS,
     JOB_LIFECYCLE_TRANSITIONS,
@@ -143,6 +144,8 @@ def root() -> dict[str, str]:
 
 @app.get("/metrics")
 def metrics() -> Response:
+    update_gpu_metrics(inventory)
+
     return Response(
         content=generate_latest(),
         media_type=CONTENT_TYPE_LATEST,
