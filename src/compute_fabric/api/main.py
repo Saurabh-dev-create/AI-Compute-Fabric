@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from compute_fabric.common.enums import GPUStatus
 from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
@@ -27,8 +27,8 @@ class JobRequest(BaseModel):
     job_id: str
     job_type: str
     gpu_type: str | None = None
-    min_vram_gb: float
-    priority: int
+    min_vram_gb: float = Field(gt=0)
+    priority: int = Field(ge=0)
 
 
 class JobResponse(BaseModel):

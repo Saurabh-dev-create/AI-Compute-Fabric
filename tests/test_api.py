@@ -280,3 +280,33 @@ def test_wrong_gpu_type_results_in_pending_job():
     assert data["status"] == "PENDING"
     assert data["gpu_id"] is None
     assert data["node_id"] is None
+
+
+def test_job_rejects_negative_vram():
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-invalid-vram",
+            "job_type": "training",
+            "gpu_type": "A100",
+            "min_vram_gb": -10,
+            "priority": 10,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_job_rejects_negative_priority():
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-invalid-priority",
+            "job_type": "training",
+            "gpu_type": "A100",
+            "min_vram_gb": 20,
+            "priority": -1,
+        },
+    )
+
+    assert response.status_code == 422
