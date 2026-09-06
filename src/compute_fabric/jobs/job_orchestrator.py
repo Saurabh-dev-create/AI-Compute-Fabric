@@ -24,10 +24,11 @@ class JobOrchestrator:
         self.gpu_manager = gpu_manager
 
     def submit_and_schedule(self, job: Job) -> SchedulingDecision | None:
-        self.job_manager.submit_job(job)
+        self.job_manager.submit_job(job)       
 
         if not self.queue_manager.submit_job(job):
             return None
+        
 
         return self.queue_processor.process_next()
 

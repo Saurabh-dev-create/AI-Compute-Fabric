@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from compute_fabric.common.enums import GPUStatus
 from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
 from compute_fabric.gpu.gpu_manager import GPUManager
-from compute_fabric.jobs.job_manager import Job
+from compute_fabric.jobs.job_manager import Job, JobManager
+from compute_fabric.jobs.job_orchestrator import JobOrchestrator
 from compute_fabric.jobs.job_state import JobStateManager
 from compute_fabric.queue.admission import AdmissionController
 from compute_fabric.queue.priority_queue import PriorityJobQueue
@@ -13,8 +14,7 @@ from compute_fabric.queue.queue_processor import QueueProcessor
 from compute_fabric.scheduler.resource_manager import ResourceManager
 from compute_fabric.scheduler.scheduler import Scheduler
 from compute_fabric.scheduler.scoring import GPUScorer
-from compute_fabric.jobs.job_orchestrator import JobOrchestrator
-from compute_fabric.jobs.job_manager import JobManager
+
 
 app = FastAPI(
     title="AI Compute Fabric",
@@ -98,13 +98,14 @@ queue_processor = QueueProcessor(
     scheduler,
     state_manager,
 )
+
 orchestrator = JobOrchestrator(
-    job_manager,
-    queue_manager,
-    queue_processor,
-    scheduler,
-    state_manager,
-    gpu_manager,
+    job_manager=job_manager,
+    queue_manager=queue_manager,
+    queue_processor=queue_processor,
+    scheduler=scheduler,
+    state_manager=state_manager,
+    gpu_manager=gpu_manager,
 )
 
 
@@ -138,12 +139,26 @@ def submit_job(request: JobRequest) -> JobResponse:
         priority=request.priority,
     )
 
+    if not admission_controller.admit(job):
+        raise HTTPException(
+            status_code=400,
+            detail="Job rejected by admission controller",
+        )
+
     decision = orchestrator.submit_and_schedule(job)
 
     if decision is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Job could not be scheduled",
+        stored_job = job_manager.get_job(job.id)
+
+        if stored_job is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Job submission failed unexpectedly",
+            )
+
+        return JobResponse(
+            job_id=stored_job.id,
+            status=stored_job.status.value,
         )
 
     return JobResponse(
@@ -155,6 +170,19 @@ def submit_job(request: JobRequest) -> JobResponse:
     )
 
 
+@app.get("/jobs", response_model=list[JobResponse])
+def list_jobs() -> list[JobResponse]:
+    return [
+        JobResponse(
+            job_id=job.id,
+            status=job.status.value,
+            gpu_id=job.gpu_id,
+            node_id=job.node_id,
+        )
+        for job in job_manager.list_jobs()
+    ]
+
+
 @app.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: str) -> JobResponse:
     job = job_manager.get_job(job_id)
@@ -164,6 +192,78 @@ def get_job(job_id: str) -> JobResponse:
             status_code=404,
             detail=f"Job {job_id} not found",
         )
+
+    return JobResponse(
+        job_id=job.id,
+        status=job.status.value,
+        gpu_id=job.gpu_id,
+        node_id=job.node_id,
+    )
+
+
+@app.post("/jobs/{job_id}/start", response_model=JobResponse)
+def start_job(job_id: str) -> JobResponse:
+    if not orchestrator.start_job(job_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id} not found",
+        )
+
+    job = job_manager.get_job(job_id)
+
+    return JobResponse(
+        job_id=job.id,
+        status=job.status.value,
+        gpu_id=job.gpu_id,
+        node_id=job.node_id,
+    )
+
+
+@app.post("/jobs/{job_id}/complete", response_model=JobResponse)
+def complete_job(job_id: str) -> JobResponse:
+    if not orchestrator.complete_job(job_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id} not found or GPU release failed",
+        )
+
+    job = job_manager.get_job(job_id)
+
+    return JobResponse(
+        job_id=job.id,
+        status=job.status.value,
+        gpu_id=job.gpu_id,
+        node_id=job.node_id,
+    )
+
+
+@app.post("/jobs/{job_id}/fail", response_model=JobResponse)
+def fail_job(job_id: str) -> JobResponse:
+    if not orchestrator.fail_job(job_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id} not found or GPU release failed",
+        )
+
+    job = job_manager.get_job(job_id)
+
+    return JobResponse(
+        job_id=job.id,
+        status=job.status.value,
+        gpu_id=job.gpu_id,
+        node_id=job.node_id,
+    )
+
+
+@app.post("/jobs/{job_id}/cancel", response_model=JobResponse)
+def cancel_job(job_id: str) -> JobResponse:
+    if not orchestrator.cancel_job(job_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id} not found or GPU release failed",
+        )
+
+    job = job_manager.get_job(job_id)
 
     return JobResponse(
         job_id=job.id,
