@@ -8,29 +8,9 @@ from compute_fabric.storage.repository import JobRepository
 class PostgresJobRepository(JobRepository):
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
-        self._initialize_database()
 
     def _connect(self) -> Connection:
         return connect(self.database_url)
-
-    def _initialize_database(self) -> None:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS jobs (
-                        id TEXT PRIMARY KEY,
-                        job_type TEXT NOT NULL,
-                        gpu_type TEXT,
-                        min_vram_gb DOUBLE PRECISION NOT NULL,
-                        priority INTEGER NOT NULL,
-                        status TEXT NOT NULL,
-                        gpu_id TEXT,
-                        node_id TEXT,
-                        allocated_vram_gb DOUBLE PRECISION
-                    )
-                    """
-                )
 
     def save(self, job: Job) -> None:
         with self._connect() as connection:
