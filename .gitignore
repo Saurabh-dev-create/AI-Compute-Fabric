@@ -7,3 +7,12 @@ __pycache__/
 *.pem
 *.key
 *.egg-info/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+.terraform.tfstate.lock.info
