@@ -124,3 +124,75 @@ resource "aws_eks_addon" "vpc_cni" {
     aws_iam_role_policy_attachment.vpc_cni,
   ]
 }
+
+data "aws_iam_policy_document" "eks_node_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "eks_node" {
+  name = "${var.project_name}-${var.environment}-eks-node-role"
+
+  assume_role_policy = data.aws_iam_policy_document.eks_node_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-eks-node-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "eks_worker_node" {
+  role       = aws_iam_role.eks_node.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "ecr_pull" {
+  role       = aws_iam_role.eks_node.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
+}
+
+resource "aws_eks_node_group" "cpu" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-${var.environment}-cpu"
+  node_role_arn   = aws_iam_role.eks_node.arn
+
+  subnet_ids = [
+    aws_subnet.private_a.id,
+    aws_subnet.private_b.id,
+  ]
+
+  instance_types = ["t3.medium"]
+  capacity_type  = "ON_DEMAND"
+  ami_type       = "AL2023_x86_64_STANDARD"
+
+  scaling_config {
+    desired_size = 1
+    min_size     = 1
+    max_size     = 2
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = {
+    workload = "cpu"
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_node,
+    aws_iam_role_policy_attachment.ecr_pull,
+    aws_eks_addon.vpc_cni,
+  ]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-cpu"
+  }
+}
