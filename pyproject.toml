@@ -12,6 +12,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pydantic",
+    "httpx",
 ]
 
 [project.optional-dependencies]
