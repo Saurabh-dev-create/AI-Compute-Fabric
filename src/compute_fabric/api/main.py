@@ -97,44 +97,55 @@ inventory = GPUInventory()
 gpu_manager = GPUManager(inventory)
 gpu_report_reconciler = GPUReportReconciler(gpu_manager)
 
-gpu_manager.register_gpu(
-    GPU(
-        id="gpu-001",
-        gpu_type="A100",
-        total_vram_gb=80,
-        free_vram_gb=64,
-        utilization_percent=20,
-        temperature_c=55,
-        status=GPUStatus.AVAILABLE,
-        node_id="gpu-node-01",
-    )
-)
+SIMULATED_GPU_INVENTORY_ENABLED = os.getenv(
+    "COMPUTE_FABRIC_SIMULATED_GPU_INVENTORY_ENABLED",
+    "true",
+).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
-gpu_manager.register_gpu(
-    GPU(
-        id="gpu-002",
-        gpu_type="A100",
-        total_vram_gb=80,
-        free_vram_gb=45,
-        utilization_percent=75,
-        temperature_c=65,
-        status=GPUStatus.AVAILABLE,
-        node_id="gpu-node-02",
+if SIMULATED_GPU_INVENTORY_ENABLED:
+    gpu_manager.register_gpu(
+        GPU(
+            id="gpu-001",
+            gpu_type="A100",
+            total_vram_gb=80,
+            free_vram_gb=64,
+            utilization_percent=20,
+            temperature_c=55,
+            status=GPUStatus.AVAILABLE,
+            node_id="gpu-node-01",
+        )
     )
-)
 
-gpu_manager.register_gpu(
-    GPU(
-        id="gpu-003",
-        gpu_type="T4",
-        total_vram_gb=16,
-        free_vram_gb=12,
-        utilization_percent=10,
-        temperature_c=50,
-        status=GPUStatus.AVAILABLE,
-        node_id="gpu-node-03",
+    gpu_manager.register_gpu(
+        GPU(
+            id="gpu-002",
+            gpu_type="A100",
+            total_vram_gb=80,
+            free_vram_gb=45,
+            utilization_percent=75,
+            temperature_c=65,
+            status=GPUStatus.AVAILABLE,
+            node_id="gpu-node-02",
+        )
     )
-)
+
+    gpu_manager.register_gpu(
+        GPU(
+            id="gpu-003",
+            gpu_type="T4",
+            total_vram_gb=16,
+            free_vram_gb=12,
+            utilization_percent=10,
+            temperature_c=50,
+            status=GPUStatus.AVAILABLE,
+            node_id="gpu-node-03",
+        )
+    )
 
 
 resource_manager = ResourceManager(gpu_manager)
