@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
@@ -7,6 +8,8 @@ from pydantic import BaseModel, Field
 from compute_fabric.common.enums import GPUStatus
 from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
 from compute_fabric.gpu.gpu_manager import GPUManager
+from compute_fabric.gpu.gpu_report import GPUReport
+from compute_fabric.gpu.gpu_report_reconciler import GPUReportReconciler
 from compute_fabric.jobs.job_manager import Job, JobManager
 from compute_fabric.jobs.job_orchestrator import JobOrchestrator
 from compute_fabric.jobs.job_state import JobStateManager
@@ -63,8 +66,26 @@ class JobResponse(BaseModel):
     score: float | None = None
 
 
+class GPUReportRequest(BaseModel):
+    gpu_id: str
+    gpu_type: str
+    node_id: str
+    total_vram_gb: float = Field(gt=0)
+    free_vram_gb: float = Field(ge=0)
+    utilization_percent: float = Field(ge=0, le=100)
+    temperature_c: float
+    power_draw_watts: float = Field(ge=0)
+    observed_at: datetime
+
+
+class GPUReportResponse(BaseModel):
+    gpu_id: str
+    status: str
+
+
 inventory = GPUInventory()
 gpu_manager = GPUManager(inventory)
+gpu_report_reconciler = GPUReportReconciler(gpu_manager)
 
 gpu_manager.register_gpu(
     GPU(
@@ -175,6 +196,28 @@ def metrics() -> Response:
 @app.get("/gpus")
 def list_gpus() -> list[GPU]:
     return gpu_manager.list_gpus()
+
+
+@app.post("/gpu/reports", response_model=GPUReportResponse)
+def ingest_gpu_report(request: GPUReportRequest) -> GPUReportResponse:
+    report = GPUReport(
+        gpu_id=request.gpu_id,
+        gpu_type=request.gpu_type,
+        node_id=request.node_id,
+        total_vram_gb=request.total_vram_gb,
+        free_vram_gb=request.free_vram_gb,
+        utilization_percent=request.utilization_percent,
+        temperature_c=request.temperature_c,
+        power_draw_watts=request.power_draw_watts,
+        observed_at=request.observed_at,
+    )
+
+    gpu = gpu_report_reconciler.reconcile(report)
+
+    return GPUReportResponse(
+        gpu_id=gpu.id,
+        status=gpu.status.value,
+    )
 
 
 @app.post("/jobs", response_model=JobResponse)

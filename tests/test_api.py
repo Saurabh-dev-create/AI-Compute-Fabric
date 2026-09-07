@@ -338,3 +338,60 @@ def test_job_rejects_negative_priority():
     )
 
     assert response.status_code == 422
+
+
+def test_gpu_report_registers_gpu_in_control_plane() -> None:
+    report = {
+        "gpu_id": "GPU-api-real-001",
+        "gpu_type": "T4",
+        "node_id": "eks-gpu-node-api-test",
+        "total_vram_gb": 16,
+        "free_vram_gb": 12,
+        "utilization_percent": 25,
+        "temperature_c": 58,
+        "power_draw_watts": 42.5,
+        "observed_at": "2026-09-07T12:00:00Z",
+    }
+
+    response = client.post("/gpu/reports", json=report)
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["gpu_id"] == "GPU-api-real-001"
+    assert body["status"] == "AVAILABLE"
+
+    gpus_response = client.get("/gpus")
+
+    assert gpus_response.status_code == 200
+
+    gpu = next(
+        item
+        for item in gpus_response.json()
+        if item["id"] == "GPU-api-real-001"
+    )
+
+    assert gpu["gpu_type"] == "T4"
+    assert gpu["node_id"] == "eks-gpu-node-api-test"
+    assert gpu["total_vram_gb"] == 16
+    assert gpu["free_vram_gb"] == 12
+
+
+def test_gpu_report_rejects_invalid_vram() -> None:
+    response = client.post(
+        "/gpu/reports",
+        json={
+            "gpu_id": "GPU-api-invalid",
+            "gpu_type": "T4",
+            "node_id": "eks-gpu-node-api-test",
+            "total_vram_gb": 16,
+            "free_vram_gb": -1,
+            "utilization_percent": 25,
+            "temperature_c": 58,
+            "power_draw_watts": 42.5,
+            "observed_at": "2026-09-07T12:00:00Z",
+        },
+    )
+
+    assert response.status_code == 422
