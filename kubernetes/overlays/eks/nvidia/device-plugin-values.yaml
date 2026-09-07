@@ -1,0 +1,20 @@
+# NVIDIA device plugin configuration for the AI Compute Fabric EKS GPU node group.
+
+gfd:
+  enabled: false
+
+mofedEnabled: false
+
+nodeSelector:
+  workload: gpu
+
+# Placement is controlled by the Terraform-managed workload=gpu label.
+# Disable the chart's default NFD-based GPU affinity because NFD is not
+# installed in this cluster.
+affinity: null
+
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: gpu
+    effect: NoSchedule
