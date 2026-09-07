@@ -1,3 +1,8 @@
+from compute_fabric.execution.workload_runner import (
+    WorkloadExecution,
+    WorkloadRunner,
+)
+from compute_fabric.execution.workload_spec import WorkloadSpec
 from compute_fabric.gpu.gpu_manager import GPUManager
 from compute_fabric.jobs.job_manager import Job, JobManager
 from compute_fabric.jobs.job_state import JobStateManager
@@ -15,6 +20,7 @@ class JobOrchestrator:
         scheduler: Scheduler,
         state_manager: JobStateManager,
         gpu_manager: GPUManager,
+        workload_runner: WorkloadRunner | None = None,
     ) -> None:
         self.job_manager = job_manager
         self.queue_manager = queue_manager
@@ -22,6 +28,7 @@ class JobOrchestrator:
         self.scheduler = scheduler
         self.state_manager = state_manager
         self.gpu_manager = gpu_manager
+        self.workload_runner = workload_runner
 
     def submit_and_schedule(self, job: Job) -> SchedulingDecision | None:
         self.job_manager.submit_job(job)       
@@ -36,6 +43,43 @@ class JobOrchestrator:
             self.job_manager.update_job(job)
 
         return decision
+
+    def launch_workload(
+        self,
+        job_id: str,
+        decision: SchedulingDecision,
+        spec: WorkloadSpec,
+    ) -> WorkloadExecution | None:
+        if self.workload_runner is None:
+            raise RuntimeError("Workload runner is not configured")
+
+        job = self.job_manager.get_job(job_id)
+
+        if job is None:
+            return None
+
+        if (
+            job.gpu_id != decision.gpu_id
+            or job.node_id != decision.node_id
+        ):
+            raise ValueError(
+                "Scheduling decision does not match persisted job placement"
+            )
+
+        try:
+            execution = self.workload_runner.launch(
+                job,
+                decision,
+                spec,
+            )
+        except Exception:
+            self.fail_job(job_id)
+            raise
+
+        job.workload_id = execution.workload_id
+        self.job_manager.update_job(job)
+
+        return execution
 
     def start_job(self, job_id: str) -> bool:
         job = self.job_manager.get_job(job_id)

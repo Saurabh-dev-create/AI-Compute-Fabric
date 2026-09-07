@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from compute_fabric.common.enums import JobStatus
+from compute_fabric.execution.workload_spec import WorkloadSpec
 from compute_fabric.storage.repository import JobRepository
 
 
@@ -15,6 +16,8 @@ class Job:
     gpu_id: str | None = None
     node_id: str | None = None
     allocated_vram_gb: float | None = None
+    workload_id: str | None = None
+    workload_spec: WorkloadSpec | None = None
 
 
 class JobManager:

@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn",
     "pydantic",
     "httpx",
+    "kubernetes",
 ]
 
 [project.optional-dependencies]

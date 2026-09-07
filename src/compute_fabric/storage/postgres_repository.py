@@ -1,6 +1,8 @@
 from psycopg import Connection, connect
+from psycopg.types.json import Jsonb
 
 from compute_fabric.common.enums import JobStatus
+from compute_fabric.execution.workload_spec import WorkloadSpec
 from compute_fabric.jobs.job_manager import Job
 from compute_fabric.storage.repository import JobRepository
 
@@ -26,9 +28,11 @@ class PostgresJobRepository(JobRepository):
                         status,
                         gpu_id,
                         node_id,
-                        allocated_vram_gb
+                        allocated_vram_gb,
+                        workload_id,
+                        workload_spec
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id)
                     DO UPDATE SET
                         job_type = EXCLUDED.job_type,
@@ -38,7 +42,9 @@ class PostgresJobRepository(JobRepository):
                         status = EXCLUDED.status,
                         gpu_id = EXCLUDED.gpu_id,
                         node_id = EXCLUDED.node_id,
-                        allocated_vram_gb = EXCLUDED.allocated_vram_gb
+                        allocated_vram_gb = EXCLUDED.allocated_vram_gb,
+                        workload_id = EXCLUDED.workload_id,
+                        workload_spec = EXCLUDED.workload_spec
                     """,
                     (
                         job.id,
@@ -50,6 +56,18 @@ class PostgresJobRepository(JobRepository):
                         job.gpu_id,
                         job.node_id,
                         job.allocated_vram_gb,
+                        job.workload_id,
+                        (
+                            Jsonb(
+                                {
+                                    "image": job.workload_spec.image,
+                                    "command": list(job.workload_spec.command),
+                                    "args": list(job.workload_spec.args),
+                                }
+                            )
+                            if job.workload_spec is not None
+                            else None
+                        ),
                     ),
                 )
 
@@ -67,7 +85,9 @@ class PostgresJobRepository(JobRepository):
                         status,
                         gpu_id,
                         node_id,
-                        allocated_vram_gb
+                        allocated_vram_gb,
+                        workload_id,
+                        workload_spec
                     FROM jobs
                     WHERE id = %s
                     """,
@@ -95,7 +115,9 @@ class PostgresJobRepository(JobRepository):
                         status,
                         gpu_id,
                         node_id,
-                        allocated_vram_gb
+                        allocated_vram_gb,
+                        workload_id,
+                        workload_spec
                     FROM jobs
                     ORDER BY id
                     """
@@ -115,6 +137,18 @@ class PostgresJobRepository(JobRepository):
 
     @staticmethod
     def _row_to_job(row: tuple) -> Job:
+        workload_data = row[10]
+
+        workload_spec = (
+            WorkloadSpec(
+                image=workload_data["image"],
+                command=tuple(workload_data.get("command", [])),
+                args=tuple(workload_data.get("args", [])),
+            )
+            if workload_data is not None
+            else None
+        )
+
         return Job(
             id=row[0],
             job_type=row[1],
@@ -125,4 +159,6 @@ class PostgresJobRepository(JobRepository):
             gpu_id=row[6],
             node_id=row[7],
             allocated_vram_gb=row[8],
+            workload_id=row[9],
+            workload_spec=workload_spec,
         )

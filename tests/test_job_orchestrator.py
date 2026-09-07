@@ -216,3 +216,200 @@ def test_rejected_job_is_not_scheduled():
     assert job.status == JobStatus.PENDING
     assert job.gpu_id is None
     assert job.node_id is None
+
+
+class FakeWorkloadRunner:
+    def __init__(self, should_fail: bool = False) -> None:
+        self.should_fail = should_fail
+        self.calls = []
+
+    def launch(self, job, decision, spec):
+        from compute_fabric.execution.workload_runner import WorkloadExecution
+
+        self.calls.append((job, decision, spec))
+
+        if self.should_fail:
+            raise RuntimeError("workload launch failed")
+
+        return WorkloadExecution(
+            job_id=job.id,
+            workload_id=f"compute-fabric-{job.id}",
+            node_id=decision.node_id,
+        )
+
+
+def create_orchestrator_with_runner(
+    runner,
+) -> tuple[JobOrchestrator, GPUManager]:
+    inventory = GPUInventory()
+    gpu_manager = GPUManager(inventory)
+
+    gpu_manager.register_gpu(
+        GPU(
+            id="gpu-001",
+            gpu_type="A100",
+            total_vram_gb=80,
+            free_vram_gb=64,
+            utilization_percent=20,
+            temperature_c=55,
+            status=GPUStatus.AVAILABLE,
+            node_id="gpu-node-01",
+        )
+    )
+
+    resource_manager = ResourceManager(gpu_manager)
+    scorer = GPUScorer()
+    scheduler = Scheduler(resource_manager, scorer, gpu_manager)
+
+    admission_controller = AdmissionController(max_vram_gb=80)
+    queue = PriorityJobQueue()
+    queue_manager = QueueManager(queue, admission_controller)
+
+    state_manager = JobStateManager()
+    queue_processor = QueueProcessor(
+        queue_manager,
+        scheduler,
+        state_manager,
+    )
+
+    repository = InMemoryJobRepository()
+    job_manager = JobManager(repository)
+
+    orchestrator = JobOrchestrator(
+        job_manager,
+        queue_manager,
+        queue_processor,
+        scheduler,
+        state_manager,
+        gpu_manager,
+        workload_runner=runner,
+    )
+
+    return orchestrator, gpu_manager
+
+
+def test_launch_workload_persists_execution_identity():
+    from compute_fabric.execution.workload_spec import WorkloadSpec
+
+    runner = FakeWorkloadRunner()
+    orchestrator, _ = create_orchestrator_with_runner(runner)
+
+    job = Job(
+        id="job-execution-001",
+        job_type="training",
+        gpu_type="A100",
+        min_vram_gb=40,
+        priority=5,
+    )
+
+    decision = orchestrator.submit_and_schedule(job)
+
+    assert decision is not None
+
+    execution = orchestrator.launch_workload(
+        job.id,
+        decision,
+        WorkloadSpec(
+            image="nvidia/cuda:12.8.1-base-ubuntu24.04",
+            command=("sh", "-c"),
+            args=("nvidia-smi",),
+        ),
+    )
+
+    assert execution is not None
+    assert execution.workload_id == "compute-fabric-job-execution-001"
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+
+    assert stored_job is not None
+    assert stored_job.status == JobStatus.SCHEDULED
+    assert stored_job.workload_id == "compute-fabric-job-execution-001"
+    assert len(runner.calls) == 1
+
+
+def test_launch_failure_releases_gpu_and_fails_job():
+    from compute_fabric.execution.workload_spec import WorkloadSpec
+
+    runner = FakeWorkloadRunner(should_fail=True)
+    orchestrator, gpu_manager = create_orchestrator_with_runner(runner)
+
+    job = Job(
+        id="job-execution-002",
+        job_type="training",
+        gpu_type="A100",
+        min_vram_gb=40,
+        priority=5,
+    )
+
+    decision = orchestrator.submit_and_schedule(job)
+
+    assert decision is not None
+
+    gpu = gpu_manager.get_gpu("gpu-001")
+
+    assert gpu is not None
+    assert gpu.status == GPUStatus.ALLOCATED
+    assert gpu.free_vram_gb == 24
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="workload launch failed"):
+        orchestrator.launch_workload(
+            job.id,
+            decision,
+            WorkloadSpec(
+                image="nvidia/cuda:12.8.1-base-ubuntu24.04",
+                command=("sh", "-c"),
+                args=("nvidia-smi",),
+            ),
+        )
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+
+    assert stored_job is not None
+    assert stored_job.status == JobStatus.FAILED
+    assert stored_job.workload_id is None
+
+    assert gpu.status == GPUStatus.AVAILABLE
+    assert gpu.free_vram_gb == 64
+
+
+def test_launch_rejects_mismatched_scheduling_decision():
+    import pytest
+
+    from compute_fabric.execution.workload_spec import WorkloadSpec
+    from compute_fabric.scheduler.scheduler import SchedulingDecision
+
+    runner = FakeWorkloadRunner()
+    orchestrator, _ = create_orchestrator_with_runner(runner)
+
+    job = Job(
+        id="job-execution-003",
+        job_type="training",
+        gpu_type="A100",
+        min_vram_gb=40,
+        priority=5,
+    )
+
+    decision = orchestrator.submit_and_schedule(job)
+
+    assert decision is not None
+
+    wrong_decision = SchedulingDecision(
+        job_id=job.id,
+        gpu_id=decision.gpu_id,
+        node_id="wrong-node",
+        score=decision.score,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Scheduling decision does not match persisted job placement",
+    ):
+        orchestrator.launch_workload(
+            job.id,
+            wrong_decision,
+            WorkloadSpec(image="example/image:latest"),
+        )
+
+    assert runner.calls == []

@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compute-fabric-api
+spec:
+  template:
+    spec:
+      serviceAccountName: compute-fabric-api
+      containers:
+        - name: api
+          env:
+            - name: COMPUTE_FABRIC_EXECUTION_BACKEND
+              value: kubernetes
+            - name: COMPUTE_FABRIC_WORKLOAD_NAMESPACE
+              value: default

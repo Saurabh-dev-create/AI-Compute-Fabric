@@ -6,6 +6,8 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from compute_fabric.common.enums import GPUStatus
+from compute_fabric.execution.factory import create_workload_runner
+from compute_fabric.execution.workload_spec import WorkloadSpec
 from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
 from compute_fabric.gpu.gpu_manager import GPUManager
 from compute_fabric.gpu.gpu_report import GPUReport
@@ -50,12 +52,19 @@ app = FastAPI(
 )
 
 
+class WorkloadRequest(BaseModel):
+    image: str = Field(min_length=1)
+    command: list[str] = Field(default_factory=list)
+    args: list[str] = Field(default_factory=list)
+
+
 class JobRequest(BaseModel):
     job_id: str
     job_type: str
     gpu_type: str | None = None
     min_vram_gb: float = Field(gt=0)
     priority: int = Field(ge=0)
+    workload: WorkloadRequest | None = None
 
 
 class JobResponse(BaseModel):
@@ -63,6 +72,7 @@ class JobResponse(BaseModel):
     status: str
     gpu_id: str | None = None
     node_id: str | None = None
+    workload_id: str | None = None
     score: float | None = None
 
 
@@ -136,6 +146,7 @@ queue = PriorityJobQueue()
 queue_manager = QueueManager(queue, admission_controller)
 
 state_manager = JobStateManager()
+workload_runner = create_workload_runner(os.environ)
 
 repository = PostgresJobRepository(DATABASE_URL)
 job_manager = JobManager(repository)
@@ -153,6 +164,7 @@ orchestrator = JobOrchestrator(
     scheduler=scheduler,
     state_manager=state_manager,
     gpu_manager=gpu_manager,
+    workload_runner=workload_runner,
 )
 
 
@@ -234,6 +246,15 @@ def submit_job(request: JobRequest) -> JobResponse:
         gpu_type=request.gpu_type,
         min_vram_gb=request.min_vram_gb,
         priority=request.priority,
+        workload_spec=(
+            WorkloadSpec(
+                image=request.workload.image,
+                command=tuple(request.workload.command),
+                args=tuple(request.workload.args),
+            )
+            if request.workload is not None
+            else None
+        ),
     )
 
     JOB_SUBMISSIONS.inc()
@@ -265,16 +286,25 @@ def submit_job(request: JobRequest) -> JobResponse:
             status=stored_job.status.value,
             gpu_id=stored_job.gpu_id,
             node_id=stored_job.node_id,
+            workload_id=stored_job.workload_id,
         )
 
     SCHEDULING_RESULTS.labels(result="scheduled").inc()
     JOB_LIFECYCLE_TRANSITIONS.labels(status=job.status.value).inc()
+
+    if job.workload_spec is not None and workload_runner is not None:
+        orchestrator.launch_workload(
+            job.id,
+            decision,
+            job.workload_spec,
+        )
 
     return JobResponse(
         job_id=job.id,
         status=job.status.value,
         gpu_id=job.gpu_id,
         node_id=job.node_id,
+        workload_id=job.workload_id,
         score=decision.score,
     )
 
@@ -287,6 +317,7 @@ def list_jobs() -> list[JobResponse]:
             status=job.status.value,
             gpu_id=job.gpu_id,
             node_id=job.node_id,
+            workload_id=job.workload_id,
         )
         for job in job_manager.list_jobs()
     ]
@@ -307,6 +338,7 @@ def get_job(job_id: str) -> JobResponse:
         status=job.status.value,
         gpu_id=job.gpu_id,
         node_id=job.node_id,
+        workload_id=job.workload_id,
     )
 
 
@@ -326,6 +358,7 @@ def start_job(job_id: str) -> JobResponse:
         status=job.status.value,
         gpu_id=job.gpu_id,
         node_id=job.node_id,
+        workload_id=job.workload_id,
     )
 
 
@@ -345,6 +378,7 @@ def complete_job(job_id: str) -> JobResponse:
         status=job.status.value,
         gpu_id=job.gpu_id,
         node_id=job.node_id,
+        workload_id=job.workload_id,
     )
 
 
@@ -364,6 +398,7 @@ def fail_job(job_id: str) -> JobResponse:
         status=job.status.value,
         gpu_id=job.gpu_id,
         node_id=job.node_id,
+        workload_id=job.workload_id,
     )
 
 
@@ -383,4 +418,5 @@ def cancel_job(job_id: str) -> JobResponse:
         status=job.status.value,
         gpu_id=job.gpu_id,
         node_id=job.node_id,
+        workload_id=job.workload_id,
     )

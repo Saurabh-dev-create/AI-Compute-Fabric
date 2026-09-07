@@ -395,3 +395,54 @@ def test_gpu_report_rejects_invalid_vram() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_submit_job_persists_workload_spec():
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-workload-job-001",
+            "job_type": "inference",
+            "gpu_type": "T4",
+            "min_vram_gb": 4,
+            "priority": 5,
+            "workload": {
+                "image": "nvidia/cuda:12.8.1-base-ubuntu24.04",
+                "command": ["sh", "-c"],
+                "args": ["nvidia-smi"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+
+    stored_job = job_manager.get_job("api-workload-job-001")
+
+    assert stored_job is not None
+    assert stored_job.workload_spec is not None
+    assert (
+        stored_job.workload_spec.image
+        == "nvidia/cuda:12.8.1-base-ubuntu24.04"
+    )
+    assert stored_job.workload_spec.command == ("sh", "-c")
+    assert stored_job.workload_spec.args == ("nvidia-smi",)
+
+
+def test_submit_job_rejects_empty_workload_image():
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-workload-invalid-image",
+            "job_type": "inference",
+            "gpu_type": "T4",
+            "min_vram_gb": 4,
+            "priority": 5,
+            "workload": {
+                "image": "",
+                "command": [],
+                "args": [],
+            },
+        },
+    )
+
+    assert response.status_code == 422
