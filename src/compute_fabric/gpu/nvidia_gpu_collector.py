@@ -1,4 +1,5 @@
 import csv
+import subprocess
 from datetime import UTC, datetime
 from io import StringIO
 
@@ -8,6 +9,22 @@ from compute_fabric.gpu.gpu_report import GPUReport
 class NvidiaGPUCollector:
     def __init__(self, node_id: str) -> None:
         self.node_id = node_id
+
+    def collect(self) -> list[GPUReport]:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=uuid,name,memory.total,memory.free,"
+                "utilization.gpu,temperature.gpu,power.draw",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+
+        return self.parse_output(result.stdout)
 
     def parse_output(self, output: str) -> list[GPUReport]:
         reports: list[GPUReport] = []

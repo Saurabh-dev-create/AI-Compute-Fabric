@@ -55,3 +55,62 @@ def test_collector_ignores_blank_lines() -> None:
     reports = collector.parse_output("\n\n")
 
     assert reports == []
+
+
+def test_collect_runs_nvidia_smi_and_returns_reports(monkeypatch) -> None:
+    import subprocess
+
+    completed = subprocess.CompletedProcess(
+        args=["nvidia-smi"],
+        returncode=0,
+        stdout=(
+            "GPU-abc123, Tesla T4, 15360, 12288, 25, 58, 42.50\n"
+        ),
+        stderr="",
+    )
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            "nvidia-smi",
+            "--query-gpu=uuid,name,memory.total,memory.free,"
+            "utilization.gpu,temperature.gpu,power.draw",
+            "--format=csv,noheader,nounits",
+        ]
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        assert kwargs["check"] is True
+        assert kwargs["timeout"] == 10
+        return completed
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    collector = NvidiaGPUCollector(node_id="gpu-node-01")
+
+    reports = collector.collect()
+
+    assert len(reports) == 1
+    assert reports[0].gpu_id == "GPU-abc123"
+    assert reports[0].gpu_type == "T4"
+
+
+def test_collect_propagates_nvidia_smi_failure(monkeypatch) -> None:
+    import subprocess
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=args[0],
+            stderr="NVIDIA query failed",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    collector = NvidiaGPUCollector(node_id="gpu-node-01")
+
+    try:
+        collector.collect()
+    except subprocess.CalledProcessError as exc:
+        assert exc.returncode == 1
+        assert exc.stderr == "NVIDIA query failed"
+    else:
+        raise AssertionError("Expected NVIDIA query failure")
