@@ -28,6 +28,8 @@ from compute_fabric.telemetry.metrics import (
     SCHEDULING_RESULTS,
 )
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from psycopg import connect
+from psycopg.errors import OperationalError
 
 
 load_dotenv()
@@ -140,6 +142,24 @@ def root() -> dict[str, str]:
         "status": "running",
         "version": "0.1.0",
     }
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "healthy"}
+
+
+@app.get("/ready")
+def ready(response: Response) -> dict[str, str]:
+    try:
+        with connect(DATABASE_URL) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+    except OperationalError:
+        response.status_code = 503
+        return {"status": "not_ready"}
+
+    return {"status": "ready"}
 
 
 @app.get("/metrics")

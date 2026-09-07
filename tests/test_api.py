@@ -31,6 +31,20 @@ def test_root_endpoint():
     }
 
 
+def test_health_endpoint():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy"}
+
+
+def test_ready_endpoint():
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
 def test_list_gpus():
     response = client.get("/gpus")
 
