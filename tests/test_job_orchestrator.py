@@ -413,3 +413,133 @@ def test_launch_rejects_mismatched_scheduling_decision():
         )
 
     assert runner.calls == []
+
+
+class FakeWorkloadObserver:
+    def __init__(self, status):
+        self.status = status
+        self.calls = []
+
+    def observe(self, workload_id):
+        from compute_fabric.execution.workload_observer import (
+            WorkloadObservation,
+        )
+
+        self.calls.append(workload_id)
+
+        return WorkloadObservation(
+            workload_id=workload_id,
+            status=self.status,
+        )
+
+
+def create_orchestrator_with_observer(observer):
+    orchestrator, gpu_manager = create_orchestrator()
+    orchestrator.workload_observer = observer
+    return orchestrator, gpu_manager
+
+
+def prepare_observed_job(orchestrator):
+    job = Job(
+        id="job-observed-001",
+        job_type="training",
+        gpu_type="A100",
+        min_vram_gb=40,
+        priority=5,
+    )
+
+    decision = orchestrator.submit_and_schedule(job)
+
+    assert decision is not None
+
+    job.workload_id = "compute-fabric-job-observed-001"
+    orchestrator.job_manager.update_job(job)
+
+    return job
+
+
+def test_reconcile_pending_keeps_job_scheduled():
+    from compute_fabric.execution.workload_observer import (
+        WorkloadRuntimeStatus,
+    )
+
+    observer = FakeWorkloadObserver(WorkloadRuntimeStatus.PENDING)
+    orchestrator, gpu_manager = create_orchestrator_with_observer(observer)
+    job = prepare_observed_job(orchestrator)
+
+    assert orchestrator.reconcile_workload(job.id) is True
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+    gpu = gpu_manager.get_gpu("gpu-001")
+
+    assert stored_job.status == JobStatus.SCHEDULED
+    assert gpu.status == GPUStatus.ALLOCATED
+    assert gpu.free_vram_gb == 24
+
+
+def test_reconcile_running_starts_job():
+    from compute_fabric.execution.workload_observer import (
+        WorkloadRuntimeStatus,
+    )
+
+    observer = FakeWorkloadObserver(WorkloadRuntimeStatus.RUNNING)
+    orchestrator, _ = create_orchestrator_with_observer(observer)
+    job = prepare_observed_job(orchestrator)
+
+    assert orchestrator.reconcile_workload(job.id) is True
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+
+    assert stored_job.status == JobStatus.RUNNING
+
+
+def test_reconcile_succeeded_completes_and_releases_gpu_once():
+    from compute_fabric.execution.workload_observer import (
+        WorkloadRuntimeStatus,
+    )
+
+    observer = FakeWorkloadObserver(WorkloadRuntimeStatus.SUCCEEDED)
+    orchestrator, gpu_manager = create_orchestrator_with_observer(observer)
+    job = prepare_observed_job(orchestrator)
+
+    assert orchestrator.reconcile_workload(job.id) is True
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+    gpu = gpu_manager.get_gpu("gpu-001")
+
+    assert stored_job.status == JobStatus.COMPLETED
+    assert gpu.status == GPUStatus.AVAILABLE
+    assert gpu.free_vram_gb == 64
+
+    assert orchestrator.reconcile_workload(job.id) is True
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+    gpu = gpu_manager.get_gpu("gpu-001")
+
+    assert stored_job.status == JobStatus.COMPLETED
+    assert gpu.free_vram_gb == 64
+    assert observer.calls == ["compute-fabric-job-observed-001"]
+
+
+def test_reconcile_failed_fails_and_releases_gpu_once():
+    from compute_fabric.execution.workload_observer import (
+        WorkloadRuntimeStatus,
+    )
+
+    observer = FakeWorkloadObserver(WorkloadRuntimeStatus.FAILED)
+    orchestrator, gpu_manager = create_orchestrator_with_observer(observer)
+    job = prepare_observed_job(orchestrator)
+
+    assert orchestrator.reconcile_workload(job.id) is True
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+    gpu = gpu_manager.get_gpu("gpu-001")
+
+    assert stored_job.status == JobStatus.FAILED
+    assert gpu.status == GPUStatus.AVAILABLE
+    assert gpu.free_vram_gb == 64
+
+    assert orchestrator.reconcile_workload(job.id) is True
+
+    assert gpu.free_vram_gb == 64
+    assert observer.calls == ["compute-fabric-job-observed-001"]

@@ -1,3 +1,8 @@
+from compute_fabric.common.enums import JobStatus
+from compute_fabric.execution.workload_observer import (
+    WorkloadObserver,
+    WorkloadRuntimeStatus,
+)
 from compute_fabric.execution.workload_runner import (
     WorkloadExecution,
     WorkloadRunner,
@@ -21,6 +26,7 @@ class JobOrchestrator:
         state_manager: JobStateManager,
         gpu_manager: GPUManager,
         workload_runner: WorkloadRunner | None = None,
+        workload_observer: WorkloadObserver | None = None,
     ) -> None:
         self.job_manager = job_manager
         self.queue_manager = queue_manager
@@ -29,6 +35,7 @@ class JobOrchestrator:
         self.state_manager = state_manager
         self.gpu_manager = gpu_manager
         self.workload_runner = workload_runner
+        self.workload_observer = workload_observer
 
     def submit_and_schedule(self, job: Job) -> SchedulingDecision | None:
         self.job_manager.submit_job(job)       
@@ -80,6 +87,45 @@ class JobOrchestrator:
         self.job_manager.update_job(job)
 
         return execution
+
+    def reconcile_workload(self, job_id: str) -> bool:
+        if self.workload_observer is None:
+            raise RuntimeError("Workload observer is not configured")
+
+        job = self.job_manager.get_job(job_id)
+
+        if job is None or job.workload_id is None:
+            return False
+
+        if job.status in {
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        }:
+            return True
+
+        observation = self.workload_observer.observe(job.workload_id)
+
+        if observation.status == WorkloadRuntimeStatus.PENDING:
+            return True
+
+        if observation.status == WorkloadRuntimeStatus.RUNNING:
+            if job.status == JobStatus.SCHEDULED:
+                return self.start_job(job_id)
+
+            return True
+
+        if observation.status == WorkloadRuntimeStatus.SUCCEEDED:
+            if job.status == JobStatus.SCHEDULED:
+                if not self.start_job(job_id):
+                    return False
+
+            return self.complete_job(job_id)
+
+        if observation.status == WorkloadRuntimeStatus.FAILED:
+            return self.fail_job(job_id)
+
+        return False
 
     def start_job(self, job_id: str) -> bool:
         job = self.job_manager.get_job(job_id)

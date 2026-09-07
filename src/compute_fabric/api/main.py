@@ -1,12 +1,21 @@
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
+from threading import Event, Thread
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from compute_fabric.common.enums import GPUStatus
-from compute_fabric.execution.factory import create_workload_runner
+from compute_fabric.execution.factory import (
+    create_workload_observer,
+    create_workload_runner,
+)
+from compute_fabric.execution.workload_reconciler import WorkloadReconciler
+from compute_fabric.execution.workload_reconciler_runtime import (
+    WorkloadReconcilerRuntime,
+)
 from compute_fabric.execution.workload_spec import WorkloadSpec
 from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
 from compute_fabric.gpu.gpu_manager import GPUManager
@@ -43,13 +52,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is not configured")
-
-
-app = FastAPI(
-    title="AI Compute Fabric",
-    description="AI-aware compute control plane for GPU workloads",
-    version="0.1.0",
-)
 
 
 class WorkloadRequest(BaseModel):
@@ -158,6 +160,7 @@ queue_manager = QueueManager(queue, admission_controller)
 
 state_manager = JobStateManager()
 workload_runner = create_workload_runner(os.environ)
+workload_observer = create_workload_observer(os.environ)
 
 repository = PostgresJobRepository(DATABASE_URL)
 job_manager = JobManager(repository)
@@ -176,6 +179,62 @@ orchestrator = JobOrchestrator(
     state_manager=state_manager,
     gpu_manager=gpu_manager,
     workload_runner=workload_runner,
+    workload_observer=workload_observer,
+)
+
+WORKLOAD_RECONCILE_INTERVAL_SECONDS = float(
+    os.getenv(
+        "COMPUTE_FABRIC_WORKLOAD_RECONCILE_INTERVAL_SECONDS",
+        "5",
+    )
+)
+
+workload_reconciler = (
+    WorkloadReconciler(
+        job_manager=job_manager,
+        orchestrator=orchestrator,
+    )
+    if workload_observer is not None
+    else None
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    stop_event: Event | None = None
+    worker: Thread | None = None
+
+    if workload_reconciler is not None:
+        stop_event = Event()
+
+        runtime = WorkloadReconcilerRuntime(
+            reconciler=workload_reconciler,
+            interval_seconds=WORKLOAD_RECONCILE_INTERVAL_SECONDS,
+            wait=stop_event.wait,
+        )
+
+        worker = Thread(
+            target=runtime.run,
+            name="workload-reconciler",
+            daemon=True,
+        )
+        worker.start()
+
+    try:
+        yield
+    finally:
+        if stop_event is not None:
+            stop_event.set()
+
+        if worker is not None:
+            worker.join(timeout=10)
+
+
+app = FastAPI(
+    title="AI Compute Fabric",
+    description="AI-aware compute control plane for GPU workloads",
+    version="0.1.0",
+    lifespan=lifespan,
 )
 
 
@@ -310,12 +369,20 @@ def submit_job(request: JobRequest) -> JobResponse:
             job.workload_spec,
         )
 
+    stored_job = job_manager.get_job(job.id)
+
+    if stored_job is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Job submission failed unexpectedly",
+        )
+
     return JobResponse(
-        job_id=job.id,
-        status=job.status.value,
-        gpu_id=job.gpu_id,
-        node_id=job.node_id,
-        workload_id=job.workload_id,
+        job_id=stored_job.id,
+        status=stored_job.status.value,
+        gpu_id=stored_job.gpu_id,
+        node_id=stored_job.node_id,
+        workload_id=stored_job.workload_id,
         score=decision.score,
     )
 

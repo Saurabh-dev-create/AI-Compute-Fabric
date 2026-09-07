@@ -100,3 +100,75 @@ def test_kubernetes_backend_rejects_empty_namespace():
                 "COMPUTE_FABRIC_WORKLOAD_NAMESPACE": "   ",
             }
         )
+
+
+def test_create_workload_observer_none_backend():
+    from compute_fabric.execution.factory import create_workload_observer
+
+    assert create_workload_observer({}) is None
+
+
+def test_create_workload_observer_kubernetes(monkeypatch):
+    from unittest.mock import Mock
+
+    from compute_fabric.execution import factory
+
+    batch_api = Mock()
+
+    monkeypatch.setattr(
+        factory.config,
+        "load_incluster_config",
+        Mock(),
+    )
+    monkeypatch.setattr(
+        factory.client,
+        "BatchV1Api",
+        Mock(return_value=batch_api),
+    )
+
+    observer = factory.create_workload_observer(
+        {
+            "COMPUTE_FABRIC_EXECUTION_BACKEND": "kubernetes",
+            "COMPUTE_FABRIC_WORKLOAD_NAMESPACE": "ai-workloads",
+        }
+    )
+
+    assert observer is not None
+    assert observer.batch_api is batch_api
+    assert observer.namespace == "ai-workloads"
+
+    factory.config.load_incluster_config.assert_called_once_with()
+    factory.client.BatchV1Api.assert_called_once_with()
+
+
+def test_create_workload_observer_rejects_unknown_backend():
+    import pytest
+
+    from compute_fabric.execution.factory import create_workload_observer
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unsupported execution backend",
+    ):
+        create_workload_observer(
+            {
+                "COMPUTE_FABRIC_EXECUTION_BACKEND": "unknown",
+            }
+        )
+
+
+def test_create_workload_observer_rejects_blank_namespace():
+    import pytest
+
+    from compute_fabric.execution.factory import create_workload_observer
+
+    with pytest.raises(
+        RuntimeError,
+        match="COMPUTE_FABRIC_WORKLOAD_NAMESPACE must not be empty",
+    ):
+        create_workload_observer(
+            {
+                "COMPUTE_FABRIC_EXECUTION_BACKEND": "kubernetes",
+                "COMPUTE_FABRIC_WORKLOAD_NAMESPACE": "   ",
+            }
+        )

@@ -2,9 +2,13 @@ from collections.abc import Mapping
 
 from kubernetes import client, config
 
+from compute_fabric.execution.kubernetes_workload_observer import (
+    KubernetesWorkloadObserver,
+)
 from compute_fabric.execution.kubernetes_workload_runner import (
     KubernetesWorkloadRunner,
 )
+from compute_fabric.execution.workload_observer import WorkloadObserver
 from compute_fabric.execution.workload_runner import WorkloadRunner
 
 
@@ -40,3 +44,38 @@ def create_workload_runner(
         batch_api=client.BatchV1Api(),
         namespace=namespace,
     )
+
+
+def create_workload_observer(
+    environment: Mapping[str, str],
+) -> WorkloadObserver | None:
+    backend = environment.get(
+        "COMPUTE_FABRIC_EXECUTION_BACKEND",
+        "none",
+    ).strip().lower()
+
+    if backend in {"", "none"}:
+        return None
+
+    if backend != "kubernetes":
+        raise RuntimeError(
+            f"Unsupported execution backend: {backend}"
+        )
+
+    namespace = environment.get(
+        "COMPUTE_FABRIC_WORKLOAD_NAMESPACE",
+        "default",
+    ).strip()
+
+    if not namespace:
+        raise RuntimeError(
+            "COMPUTE_FABRIC_WORKLOAD_NAMESPACE must not be empty"
+        )
+
+    config.load_incluster_config()
+
+    return KubernetesWorkloadObserver(
+        batch_api=client.BatchV1Api(),
+        namespace=namespace,
+    )
+

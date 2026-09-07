@@ -446,3 +446,64 @@ def test_submit_job_rejects_empty_workload_image():
     )
 
     assert response.status_code == 422
+
+
+def test_submit_workload_returns_persisted_workload_id(monkeypatch):
+    from compute_fabric.api import main as api_main
+    from compute_fabric.execution.workload_runner import WorkloadExecution
+
+    class FakeWorkloadRunner:
+        def launch(self, job, decision, spec):
+            return WorkloadExecution(
+                job_id=job.id,
+                workload_id=f"compute-fabric-{job.id}",
+                node_id=decision.node_id,
+            )
+
+    runner = FakeWorkloadRunner()
+
+    monkeypatch.setattr(
+        api_main,
+        "workload_runner",
+        runner,
+    )
+    monkeypatch.setattr(
+        api_main.orchestrator,
+        "workload_runner",
+        runner,
+    )
+
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-workload-response-001",
+            "job_type": "inference",
+            "gpu_type": "T4",
+            "min_vram_gb": 4,
+            "priority": 5,
+            "workload": {
+                "image": "nvidia/cuda:12.8.1-base-ubuntu24.04",
+                "command": ["sh", "-c"],
+                "args": ["nvidia-smi"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert (
+        data["workload_id"]
+        == "compute-fabric-api-workload-response-001"
+    )
+
+    stored_job = job_manager.get_job(
+        "api-workload-response-001"
+    )
+
+    assert stored_job is not None
+    assert (
+        stored_job.workload_id
+        == "compute-fabric-api-workload-response-001"
+    )
