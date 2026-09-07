@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ../../base
   - storageclass-gp3.yaml
+  - gpu-agent.yaml
 
 patches:
   - path: postgres-storage-patch.yaml

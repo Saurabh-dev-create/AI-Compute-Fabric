@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: compute-fabric-gpu-agent
+spec:
+  selector:
+    matchLabels:
+      app: compute-fabric-gpu-agent
+
+  template:
+    metadata:
+      labels:
+        app: compute-fabric-gpu-agent
+
+    spec:
+      nodeSelector:
+        workload: gpu
+
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+
+      containers:
+        - name: gpu-agent
+          image: ghcr.io/saurabh-dev-create/ai-compute-fabric-gpu-agent:latest
+          imagePullPolicy: Always
+
+          env:
+            - name: GPU_AGENT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+            - name: GPU_AGENT_CONTROL_PLANE_URL
+              value: http://compute-fabric-api:8000
+
+            - name: GPU_AGENT_INTERVAL_SECONDS
+              value: "15"
+
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: utility
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
