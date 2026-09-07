@@ -54,3 +54,73 @@ resource "aws_eks_cluster" "main" {
     Name = "${var.project_name}-${var.environment}"
   }
 }
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+
+  client_id_list = [
+    "sts.amazonaws.com",
+  ]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-eks-oidc"
+  }
+}
+
+data "aws_iam_policy_document" "vpc_cni_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type = "Federated"
+      identifiers = [
+        aws_iam_openid_connect_provider.eks.arn,
+      ]
+    }
+
+    actions = [
+      "sts:AssumeRoleWithWebIdentity",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:aws-node"]
+    }
+  }
+}
+
+resource "aws_iam_role" "vpc_cni" {
+  name = "${var.project_name}-${var.environment}-vpc-cni-role"
+
+  assume_role_policy = data.aws_iam_policy_document.vpc_cni_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-vpc-cni-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "vpc_cni" {
+  role       = aws_iam_role.vpc_cni.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
+
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name             = aws_eks_cluster.main.name
+  addon_name               = "vpc-cni"
+  addon_version            = "v1.22.4-eksbuild.3"
+  service_account_role_arn = aws_iam_role.vpc_cni.arn
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  depends_on = [
+    aws_iam_role_policy_attachment.vpc_cni,
+  ]
+}
