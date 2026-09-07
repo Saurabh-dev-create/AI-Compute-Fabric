@@ -63,6 +63,7 @@ jobs:
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
           echo "GPU_AGENT_IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}-gpu-agent" >> "$GITHUB_ENV"
           echo "TRAINING_IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}-training" >> "$GITHUB_ENV"
+          echo "QLORA_IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}-qlora" >> "$GITHUB_ENV"
 
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
@@ -112,3 +113,17 @@ jobs:
         run: |
           docker push "${TRAINING_IMAGE_NAME}:${GITHUB_SHA}"
           docker push "${TRAINING_IMAGE_NAME}:latest"
+
+      - name: Build QLoRA workload image
+        run: |
+          docker build \
+            -f examples/qlora/Dockerfile \
+            -t "${QLORA_IMAGE_NAME}:${GITHUB_SHA}" \
+            -t "${QLORA_IMAGE_NAME}:latest" \
+            examples/qlora
+
+      - name: Push QLoRA workload image
+        if: github.event_name == 'push'
+        run: |
+          docker push "${QLORA_IMAGE_NAME}:${GITHUB_SHA}"
+          docker push "${QLORA_IMAGE_NAME}:latest"

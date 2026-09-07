@@ -1,0 +1,202 @@
+[
+  {
+    "instruction": "What is the purpose of Kubernetes in an AI infrastructure platform?",
+    "response": "Kubernetes provides container orchestration, scheduling primitives, service discovery, rollout management, and workload lifecycle management. An AI infrastructure platform can build higher-level GPU placement, model lifecycle, and policy controls on top of it."
+  },
+  {
+    "instruction": "Why should an AI scheduler avoid directly depending on Kubernetes APIs?",
+    "response": "Keeping the scheduler independent of Kubernetes preserves a clean placement boundary. The scheduler decides which resource is best, while an execution adapter translates that decision into a Kubernetes workload."
+  },
+  {
+    "instruction": "What is the difference between admission control and scheduling?",
+    "response": "Admission control decides whether a workload is allowed to enter the system. Scheduling decides which available compute resource should execute an admitted workload."
+  },
+  {
+    "instruction": "What is the role of a priority queue in workload orchestration?",
+    "response": "A priority queue determines the order in which pending workloads are considered for scheduling, allowing higher-priority jobs to be evaluated before lower-priority ones."
+  },
+  {
+    "instruction": "Why is GPU memory important for AI workloads?",
+    "response": "GPU memory must hold model parameters, activations, optimizer state, and temporary tensors. A workload may fail or require different optimization techniques if its memory demand exceeds available VRAM."
+  },
+  {
+    "instruction": "What does GPU utilization measure?",
+    "response": "GPU utilization indicates how actively the GPU compute engines are being used. It helps identify whether workloads are efficiently using the accelerator or leaving substantial capacity idle."
+  },
+  {
+    "instruction": "Why should GPU temperature be monitored?",
+    "response": "High temperatures can indicate sustained load, cooling problems, or hardware stress. Monitoring temperature supports reliability, capacity planning, and health-aware scheduling."
+  },
+  {
+    "instruction": "What is GPU fragmentation?",
+    "response": "GPU fragmentation occurs when available GPU memory or accelerator capacity is spread across resources in a way that prevents larger workloads from fitting efficiently despite total free capacity being sufficient."
+  },
+  {
+    "instruction": "What is the purpose of a GPU inventory service?",
+    "response": "A GPU inventory service maintains the current state of accelerator resources, including type, free memory, utilization, health, node location, and allocation status."
+  },
+  {
+    "instruction": "Why should stale GPU telemetry be removed from a scheduler's view?",
+    "response": "Stale telemetry can make terminated or unreachable GPUs appear schedulable. Expiring stale reports prevents placement decisions from targeting resources that no longer exist."
+  },
+  {
+    "instruction": "What is the difference between logical GPU reservation and physical GPU allocation?",
+    "response": "Logical reservation is a control-plane decision that marks a GPU as assigned to a workload. Physical allocation is performed by the runtime layer, such as Kubernetes assigning an NVIDIA GPU device to the container."
+  },
+  {
+    "instruction": "Why is idempotency important in workload reconciliation?",
+    "response": "Idempotency ensures repeated reconciliation does not apply the same state transition or resource release multiple times. This prevents duplicate actions and inconsistent control-plane state."
+  },
+  {
+    "instruction": "What does workload reconciliation mean?",
+    "response": "Workload reconciliation compares observed runtime state with control-plane state and updates lifecycle status until both converge on the same desired outcome."
+  },
+  {
+    "instruction": "What is a workload observer?",
+    "response": "A workload observer reads execution state from the runtime environment and reports whether a workload is pending, running, successful, or failed."
+  },
+  {
+    "instruction": "Why should runtime observation be separate from scheduling?",
+    "response": "Scheduling decides placement before execution, while runtime observation tracks what happens afterward. Separating them keeps placement logic independent from runtime lifecycle details."
+  },
+  {
+    "instruction": "What is the purpose of a workload execution adapter?",
+    "response": "A workload execution adapter converts a backend-neutral workload specification into a runtime-specific object such as a Kubernetes Job."
+  },
+  {
+    "instruction": "Why is backend-neutral workload specification useful?",
+    "response": "A backend-neutral workload specification allows the control plane to describe container execution without coupling business logic to a specific runtime such as Kubernetes."
+  },
+  {
+    "instruction": "What is the difference between training and inference workloads?",
+    "response": "Training updates model parameters using data and optimization, while inference uses an already trained model to generate predictions or responses."
+  },
+  {
+    "instruction": "What is QLoRA?",
+    "response": "QLoRA is a parameter-efficient fine-tuning technique that loads the base model in low-bit quantized form while training small LoRA adapter matrices."
+  },
+  {
+    "instruction": "Why is QLoRA useful on smaller GPUs?",
+    "response": "QLoRA reduces the memory required for the frozen base model by using low-bit quantization, allowing parameter-efficient fine-tuning to run on GPUs with less VRAM."
+  },
+  {
+    "instruction": "What are LoRA adapters?",
+    "response": "LoRA adapters are small trainable low-rank matrices inserted into selected neural network layers. They allow fine-tuning without updating all parameters of the base model."
+  },
+  {
+    "instruction": "Why is 4-bit quantization used in QLoRA?",
+    "response": "Four-bit quantization significantly reduces memory usage for the frozen base model while retaining enough numerical quality for practical fine-tuning."
+  },
+  {
+    "instruction": "What is NF4 quantization?",
+    "response": "NF4 is a four-bit numerical format designed for normally distributed neural network weights and is commonly used in QLoRA workflows."
+  },
+  {
+    "instruction": "Why should a fine-tuning workload save only adapter weights?",
+    "response": "Saving only adapter weights keeps artifacts much smaller than storing the entire base model and allows the adapter to be loaded later with the original model."
+  },
+  {
+    "instruction": "What does parameter-efficient fine-tuning mean?",
+    "response": "Parameter-efficient fine-tuning updates only a small subset of additional parameters instead of modifying every parameter in the base model."
+  },
+  {
+    "instruction": "Why should training loss be observed during fine-tuning?",
+    "response": "Training loss provides a basic signal that optimization is progressing and helps detect divergence, instability, or configuration problems."
+  },
+  {
+    "instruction": "What is the purpose of a model serving engine such as vLLM?",
+    "response": "A model serving engine efficiently loads language models and processes inference requests with optimized batching, memory management, and token generation."
+  },
+  {
+    "instruction": "Why is continuous batching useful for LLM inference?",
+    "response": "Continuous batching combines work from multiple requests dynamically, improving GPU utilization and increasing inference throughput."
+  },
+  {
+    "instruction": "What is model latency?",
+    "response": "Model latency is the time required to process an inference request and produce output. It may include queueing, prompt processing, and token generation time."
+  },
+  {
+    "instruction": "What is inference throughput?",
+    "response": "Inference throughput measures how much inference work a system can complete over time, such as requests per second or generated tokens per second."
+  },
+  {
+    "instruction": "Why should AI infrastructure track cost per workload?",
+    "response": "Cost tracking helps teams understand resource efficiency, enforce budgets, compare deployment options, and choose between self-hosted and managed inference."
+  },
+  {
+    "instruction": "What factors can be included in cost-aware GPU scheduling?",
+    "response": "Cost-aware scheduling can consider instance price, GPU type, expected runtime, utilization, region, spot availability, workload priority, and performance requirements."
+  },
+  {
+    "instruction": "What is autoscaling in GPU infrastructure?",
+    "response": "Autoscaling changes GPU capacity based on demand so the platform can add resources during workload pressure and remove idle capacity to reduce cost."
+  },
+  {
+    "instruction": "Why are GPU nodes often scaled to zero when idle?",
+    "response": "GPU instances are expensive. Scaling idle nodes to zero avoids paying for accelerator capacity when no workloads require it."
+  },
+  {
+    "instruction": "What is observability in an AI platform?",
+    "response": "Observability combines metrics, logs, traces, and events to understand workload execution, GPU behavior, failures, latency, utilization, and platform health."
+  },
+  {
+    "instruction": "Which GPU metrics are useful for platform monitoring?",
+    "response": "Useful GPU metrics include free and total VRAM, utilization, temperature, power usage, allocation status, health, and workload ownership."
+  },
+  {
+    "instruction": "Why is Prometheus useful for AI infrastructure?",
+    "response": "Prometheus collects time-series metrics that can be used to monitor workloads, scheduling behavior, GPU health, latency, and platform reliability."
+  },
+  {
+    "instruction": "What is the role of Grafana in an AI platform?",
+    "response": "Grafana visualizes operational metrics and allows engineers to build dashboards for GPU utilization, workload status, scheduling outcomes, and reliability."
+  },
+  {
+    "instruction": "Why should failed workloads release GPU reservations?",
+    "response": "Keeping a GPU reserved after workload failure wastes capacity and can prevent future jobs from being scheduled even though the resource is no longer in use."
+  },
+  {
+    "instruction": "What is a control plane?",
+    "response": "A control plane coordinates higher-level decisions such as admission, scheduling, lifecycle state, policy, resource allocation, and reconciliation."
+  },
+  {
+    "instruction": "What is the difference between a control plane and a data plane?",
+    "response": "The control plane makes coordination and policy decisions, while the data plane performs the actual execution or request processing."
+  },
+  {
+    "instruction": "Why should control-plane state be persisted?",
+    "response": "Persistence allows workload state, scheduling decisions, execution identity, and lifecycle history to survive process restarts and support reliable recovery."
+  },
+  {
+    "instruction": "What is the purpose of database migrations?",
+    "response": "Database migrations provide controlled, versioned schema evolution so application changes can be deployed without relying on runtime schema creation."
+  },
+  {
+    "instruction": "Why is infrastructure as code useful for AI platforms?",
+    "response": "Infrastructure as code makes cloud networking, clusters, node groups, IAM, storage, and GPU capacity reproducible, reviewable, and version controlled."
+  },
+  {
+    "instruction": "Why are GPU worker nodes commonly isolated with taints and tolerations?",
+    "response": "Taints and tolerations prevent ordinary workloads from consuming expensive GPU nodes and allow only explicitly approved GPU workloads to run there."
+  },
+  {
+    "instruction": "What is the role of the NVIDIA device plugin in Kubernetes?",
+    "response": "The NVIDIA device plugin exposes GPU resources to Kubernetes so pods can request and receive accelerator devices using resources such as nvidia.com/gpu."
+  },
+  {
+    "instruction": "Why should a Kubernetes GPU Job request and limit the same GPU count?",
+    "response": "Matching GPU requests and limits provides predictable accelerator allocation and ensures the workload receives the intended number of GPU devices."
+  },
+  {
+    "instruction": "What is a reliability benefit of separating infrastructure failures from scheduling logic?",
+    "response": "Separating these concerns allows infrastructure problems to be handled by execution and reconciliation components without contaminating the placement algorithm."
+  },
+  {
+    "instruction": "Why should an AI platform use health-aware scheduling?",
+    "response": "Health-aware scheduling avoids placing workloads on degraded or unavailable resources, improving success rate and reducing avoidable failures."
+  },
+  {
+    "instruction": "What is the purpose of model lifecycle management?",
+    "response": "Model lifecycle management tracks stages such as training, fine-tuning, versioning, deployment, serving, rollback, retirement, and artifact ownership."
+  }
+]
