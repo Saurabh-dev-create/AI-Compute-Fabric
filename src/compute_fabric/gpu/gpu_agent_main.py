@@ -1,3 +1,6 @@
+import os
+import signal
+import time
 from collections.abc import Callable
 
 import httpx
@@ -35,3 +38,36 @@ def build_gpu_agent_runtime(
         sleep=sleep,
         should_stop=should_stop,
     )
+
+
+def main() -> None:
+    config = GPUAgentConfig.from_mapping(os.environ)
+
+    shutdown_requested = False
+
+    def request_shutdown(
+        signum: int,
+        frame: object,
+    ) -> None:
+        nonlocal shutdown_requested
+        shutdown_requested = True
+
+    signal.signal(signal.SIGTERM, request_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+
+    def should_stop() -> bool:
+        return shutdown_requested
+
+    with httpx.Client() as client:
+        runtime = build_gpu_agent_runtime(
+            config=config,
+            client=client,
+            sleep=time.sleep,
+            should_stop=should_stop,
+        )
+
+        runtime.run()
+
+
+if __name__ == "__main__":
+    main()
