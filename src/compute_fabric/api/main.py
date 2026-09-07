@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import Event, Thread
 
 from dotenv import load_dotenv
@@ -21,6 +21,9 @@ from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
 from compute_fabric.gpu.gpu_manager import GPUManager
 from compute_fabric.gpu.gpu_report import GPUReport
 from compute_fabric.gpu.gpu_report_reconciler import GPUReportReconciler
+from compute_fabric.gpu.gpu_report_reconciler_runtime import (
+    GPUReportReconcilerRuntime,
+)
 from compute_fabric.jobs.job_manager import Job, JobManager
 from compute_fabric.jobs.job_orchestrator import JobOrchestrator
 from compute_fabric.jobs.job_state import JobStateManager
@@ -189,6 +192,20 @@ WORKLOAD_RECONCILE_INTERVAL_SECONDS = float(
     )
 )
 
+GPU_STALE_AFTER_SECONDS = float(
+    os.getenv(
+        "COMPUTE_FABRIC_GPU_STALE_AFTER_SECONDS",
+        "60",
+    )
+)
+
+GPU_STALE_RECONCILE_INTERVAL_SECONDS = float(
+    os.getenv(
+        "COMPUTE_FABRIC_GPU_STALE_RECONCILE_INTERVAL_SECONDS",
+        "15",
+    )
+)
+
 workload_reconciler = (
     WorkloadReconciler(
         job_manager=job_manager,
@@ -201,32 +218,46 @@ workload_reconciler = (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    stop_event: Event | None = None
-    worker: Thread | None = None
+    stop_event = Event()
+    workers: list[Thread] = []
 
     if workload_reconciler is not None:
-        stop_event = Event()
-
-        runtime = WorkloadReconcilerRuntime(
+        workload_runtime = WorkloadReconcilerRuntime(
             reconciler=workload_reconciler,
             interval_seconds=WORKLOAD_RECONCILE_INTERVAL_SECONDS,
             wait=stop_event.wait,
         )
 
-        worker = Thread(
-            target=runtime.run,
+        workload_worker = Thread(
+            target=workload_runtime.run,
             name="workload-reconciler",
             daemon=True,
         )
-        worker.start()
+        workload_worker.start()
+        workers.append(workload_worker)
+
+    gpu_runtime = GPUReportReconcilerRuntime(
+        reconciler=gpu_report_reconciler,
+        stale_after_seconds=GPU_STALE_AFTER_SECONDS,
+        interval_seconds=GPU_STALE_RECONCILE_INTERVAL_SECONDS,
+        now=lambda: datetime.now(UTC),
+        wait=stop_event.wait,
+    )
+
+    gpu_worker = Thread(
+        target=gpu_runtime.run,
+        name="gpu-stale-reconciler",
+        daemon=True,
+    )
+    gpu_worker.start()
+    workers.append(gpu_worker)
 
     try:
         yield
     finally:
-        if stop_event is not None:
-            stop_event.set()
+        stop_event.set()
 
-        if worker is not None:
+        for worker in workers:
             worker.join(timeout=10)
 
 
