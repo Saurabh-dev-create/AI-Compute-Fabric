@@ -255,3 +255,49 @@ resource "aws_eks_addon" "ebs_csi" {
     aws_eks_node_group.cpu,
   ]
 }
+
+resource "aws_eks_node_group" "gpu" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-${var.environment}-gpu"
+  node_role_arn   = aws_iam_role.eks_node.arn
+
+  subnet_ids = [
+    aws_subnet.private_a.id,
+    aws_subnet.private_b.id,
+  ]
+
+  instance_types = ["g4dn.xlarge"]
+  capacity_type  = "ON_DEMAND"
+  ami_type       = "AL2023_x86_64_NVIDIA"
+
+  scaling_config {
+    desired_size = 0
+    min_size     = 0
+    max_size     = 1
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = {
+    workload = "gpu"
+  }
+
+  taint {
+    key    = "dedicated"
+    value  = "gpu"
+    effect = "NO_SCHEDULE"
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_node,
+    aws_iam_role_policy_attachment.ecr_pull,
+    aws_eks_addon.vpc_cni,
+  ]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-gpu"
+  }
+}
+
