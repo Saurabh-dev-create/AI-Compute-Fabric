@@ -269,6 +269,7 @@ resource "aws_eks_node_group" "gpu" {
   instance_types = ["g4dn.xlarge"]
   capacity_type  = "ON_DEMAND"
   ami_type       = "AL2023_x86_64_NVIDIA"
+  disk_size      = 50
 
   scaling_config {
     desired_size = 0
