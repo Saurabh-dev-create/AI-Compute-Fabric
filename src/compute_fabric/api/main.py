@@ -24,6 +24,8 @@ from compute_fabric.managed_inference.factory import (
     create_managed_inference_service,
 )
 from compute_fabric.managed_inference.provider import ManagedInferenceRequest
+from compute_fabric.mcp.devops_server import create_devops_mcp_server
+from compute_fabric.mcp.service import MCPService
 from compute_fabric.gpu.gpu_manager import GPUManager
 from compute_fabric.gpu.gpu_report import GPUReport
 from compute_fabric.gpu.gpu_report_reconciler import GPUReportReconciler
@@ -115,6 +117,11 @@ class ManagedInferenceAPIResponse(BaseModel):
     request_id: str | None = None
 
 
+class MCPToolCallRequest(BaseModel):
+    name: str = Field(min_length=1)
+    arguments: dict[str, object] = Field(default_factory=dict)
+
+
 class GPUReportRequest(BaseModel):
     gpu_id: str
     gpu_type: str
@@ -202,6 +209,9 @@ workload_terminator = create_workload_terminator(os.environ)
 
 repository = PostgresJobRepository(DATABASE_URL)
 job_manager = JobManager(repository)
+
+mcp_server = create_devops_mcp_server()
+mcp_service = MCPService(mcp_server)
 
 queue_processor = QueueProcessor(
     queue_manager,
@@ -603,3 +613,30 @@ def invoke_managed_inference(
         total_tokens=result.total_tokens,
         request_id=result.request_id,
     )
+
+
+@app.get("/mcp/tools")
+async def list_mcp_tools() -> list[dict[str, object]]:
+    try:
+        return await mcp_service.list_tools()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post("/mcp/call")
+async def call_mcp_tool(
+    request: MCPToolCallRequest,
+) -> dict[str, object]:
+    try:
+        return await mcp_service.call_tool(
+            request.name,
+            request.arguments,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
