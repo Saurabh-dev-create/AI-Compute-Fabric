@@ -628,6 +628,12 @@ This validated that scheduling decisions were not merely simulated control-plane
 
 The next workload extended the platform from synthetic training to real LLM fine-tuning.
 
+### Real QLoRA Fine-Tuning on NVIDIA Tesla T4
+
+![QLoRA Fine-Tuning on Tesla T4](docs/screenshots/qlora-real-t4-training.png)
+
+*Real 4-bit QLoRA fine-tuning of Qwen2.5-0.5B-Instruct on an NVIDIA Tesla T4, showing CUDA execution, parameter-efficient training, decreasing loss, and successful adapter generation.*
+
 A **4-bit QLoRA** workload fine-tuned:
 
 ```text
@@ -658,6 +664,11 @@ step=3 loss=4.044377
 step=4 loss=3.826257
 step=5 loss=3.617788
 ```
+### Workload Completion and GPU Reconciliation
+
+![Workload Completion and GPU Release](docs/screenshots/qlora-job-lifecycle-gpu-release.png)
+
+*After the Kubernetes training workload completes, AI Compute Fabric reconciles the control-plane job to COMPLETED and releases the Tesla T4 back to AVAILABLE capacity.*
 
 The adapter was successfully produced:
 
@@ -764,6 +775,12 @@ Workloads authenticate to S3 using **IAM Roles for Service Accounts (IRSA)** rat
 ---
 
 # 15. vLLM Inference
+
+### Real vLLM Inference on NVIDIA Tesla T4
+
+![Real vLLM GPU Inference](docs/screenshots/vllm-real-gpu-inference.png)
+
+*End-to-end self-hosted inference through AI Compute Fabric: the control plane tracks the running workload, Kubernetes places it on the GPU node, an NVIDIA Tesla T4 provides accelerator capacity, and vLLM serves a real Qwen2.5-0.5B-Instruct inference response.*i
 
 The execution layer also supports long-running model-serving workloads.
 
