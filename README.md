@@ -3,6 +3,15 @@
 > **An AI-aware compute control plane for scheduling, executing, observing, and managing GPU and AI workloads across self-hosted and managed compute.**
 
 AI Compute Fabric is an end-to-end **AI infrastructure engineering project** built to explore the layer between AI workloads and raw compute infrastructure.
+## Design Highlights
+
+- Scheduler remains infrastructure-agnostic; Kubernetes execution lives behind `WorkloadRunner`.
+- Admission, queueing, placement, allocation, execution, and reconciliation have separate ownership.
+- Real EKS environments use dynamically discovered GPU inventory rather than simulated resources.
+- Batch and service workloads share one control plane while using different runtime materialization.
+- Logical GPU capacity is released only after runtime termination/completion is reconciled.
+- Training artifacts survive ephemeral workloads through IRSA-backed S3 publication and PostgreSQL metadata.
+- Managed inference remains provider-abstracted from self-hosted GPU execution.
 
 Instead of treating GPUs as generic Kubernetes capacity, the platform introduces an AI-aware control plane responsible for:
 
@@ -233,8 +242,8 @@ Its main components include:
 ### Platform API
 
 Provides the external boundary for workload submission, lifecycle operations, artifact access, managed inference, and operational integrations.
-docs/screenshots/integrated-control-plane-validation.png
-docs/screenshots/eks-application-stack.png
+[](docs/screenshots/integrated-control-plane-validation.png)
+[](docs/screenshots/eks-application-stack.png)
 
 ### Job Orchestrator
 
@@ -1360,7 +1369,7 @@ MCP integration
 
 At the final implementation checkpoint:
 
-docs/screenshots/full-test-suite-156-passed.png
+![Full Test Suite](docs/screenshots/full-test-suite-156-passed.png)
 
 Automated Validation: 156 tests covering scheduling, GPU telemetry, persistence, artifact storage/publication, workload execution, and reconciliation — all passing
 
@@ -1373,68 +1382,6 @@ CI is implemented with **GitHub Actions**.
 The CI pipeline was also used to build and publish immutable workload/container revisions used during real infrastructure validation.
 
 Automated tests complement rather than replace the real AWS/EKS validation performed throughout the project.
-
----
-
-# 24. Screenshots / Engineering Evidence
-
-The project was validated progressively with real infrastructure evidence.
-
-Recommended portfolio evidence includes:
-
-### Real NVIDIA T4 / CUDA
-
-Evidence of the real EKS GPU node and CUDA-visible Tesla T4.
-
-```text
-NVIDIA Tesla T4
-CUDA Available
-Kubernetes GPU Resource
-```
-
-### PyTorch Training
-
-Real scheduler-to-GPU training with decreasing loss and terminal lifecycle reconciliation.
-
-### QLoRA Fine-Tuning
-
-```text
-Tesla T4
-Qwen/Qwen2.5-0.5B-Instruct
-4-bit QLoRA
-Loss 4.875 → 3.618
-Adapter generated
-```
-
-### vLLM Inference
-
-Real scheduler-driven model serving through Kubernetes Deployment/Service and an OpenAI-compatible inference API.
-
-### Artifact Lifecycle
-
-```text
-QLoRA
- ↓
-S3
- ↓
-PostgreSQL
- ↓
-Artifact API
-```
-
-### AWS Bedrock
-
-Real managed inference response with usage and AWS request metadata.
-
-### MCP
-
-Real Kubernetes cluster information retrieved through the MCP architecture.
-
-### Grafana
-
-Control-plane dashboards covering scheduling, job lifecycle, GPU state, and accelerator telemetry.
-
-> Portfolio screenshots and architecture diagrams are maintained under `docs/images/` as the documentation is finalized.
 
 ---
 

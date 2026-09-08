@@ -1,79 +1,89 @@
-cat <<'EOF' > CHANGELOG.md
+cd ~/ai-compute-fabric
+
+cat > docs/CHANGELOG.md <<'EOF'
 # Changelog
 
-All notable changes to AI Compute Fabric will be documented in this file.
+All notable changes to **AI Compute Fabric** are documented in this file.
 
 The format follows the general principles of Keep a Changelog.
 
+AI Compute Fabric evolved from a local GPU scheduling prototype into an
+AI-aware compute control plane validated on Amazon EKS with real NVIDIA GPU
+infrastructure, training and inference workloads, durable model artifacts,
+managed inference, MCP-based operations, and observability.
+
+---
+
 ## [Unreleased]
 
-### Added
+### Documentation
 
-- Project documentation structure.
-- Architecture documentation.
-- API documentation.
-- Development guide.
-- Deployment guide.
-- Project roadmap.
-- Architecture Decision Record structure.
+- Final architecture and portfolio documentation refinement.
+- Production gaps and engineering trade-offs documentation.
+- Architecture Decision Record cleanup and consolidation.
 
-### Planned
+### Known Engineering Debt
 
-- Full API integration with `JobOrchestrator`.
-- API-level automated tests.
-- Job lifecycle API endpoints.
-- Persistent job state.
+- Queue processing can return a scheduling decision for an older pending job
+  when multiple jobs are waiting in the in-memory queue.
+- Head-of-line queue blocking remains possible.
+- Kubernetes workload termination requires additional idempotency hardening.
+- Dynamic GPU metric labels can retain stale series.
+- API authentication and authorization are not implemented.
+- Full multi-tenant workload isolation is not implemented.
+- Production-grade autoscaling, high availability, and disaster recovery are
+  outside the current portfolio scope.
 
-## [0.1.0] - 2026-09-06
+---
 
-### Added
+## [0.5.0] - 2026-09-08
 
-#### GPU Management
+### Added — Durable Model Artifact Lifecycle
 
-- GPU data model.
-- GPU inventory.
-- GPU registration and removal.
-- GPU health checks.
-- VRAM-aware GPU allocation.
-- GPU resource release.
+- Model artifact domain model.
+- Artifact repository abstraction.
+- PostgreSQL-backed artifact metadata persistence.
+- `ArtifactService` lifecycle boundary.
+- Alembic migration for the `model_artifacts` table.
+- Job-to-artifact relationships.
+- S3-backed artifact storage.
+- Recursive artifact directory publication.
+- Private Amazon S3 artifact bucket managed through Terraform.
+- S3 versioning and server-side encryption.
+- Public-access blocking for artifact storage.
+- IAM Roles for Service Accounts (IRSA) for workload artifact access.
+- Dedicated Kubernetes workload ServiceAccount.
+- Artifact publication context injected into executed workloads.
+- QLoRA artifact publisher using workload identity.
+- Durable QLoRA adapter upload to Amazon S3.
+- Artifact metadata registration through the API.
 
-#### Scheduling
+### Added — Artifact API
 
-- GPU resource manager.
-- GPU scoring.
-- GPU-aware scheduler.
-- scheduling decisions.
-- prevention of allocation of already allocated GPUs.
+- `POST /artifacts`
+- `GET /artifacts/{artifact_id}`
+- `GET /jobs/{job_id}/artifacts`
 
-#### Queue
+### Validated
 
-- Priority job queue.
-- Admission controller.
-- Queue manager.
-- Queue processor.
+Real end-to-end QLoRA artifact lifecycle:
 
-#### Jobs
-
-- Job model.
-- Job manager.
-- Job state manager.
-- Job orchestrator.
-- Job lifecycle operations.
-
-#### API
-
-- FastAPI application.
-- `GET /`
-- `GET /gpus`
-- `POST /jobs`
-- `GET /jobs/{job_id}`
-
-#### Testing
-
-- Scheduler test suite.
-- Job orchestrator test suite.
-- 10 automated tests currently passing.
-
-[Unreleased]: https://github.com/<owner>/<repository>/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/<owner>/<repository>/releases/tag/v0.1.0
+```text
+Tesla T4
+    ↓
+CUDA
+    ↓
+Qwen2.5-0.5B-Instruct
+    ↓
+4-bit QLoRA Fine-Tuning
+    ↓
+Adapter Saved
+    ↓
+IRSA-Authenticated S3 Upload
+    ↓
+PostgreSQL Artifact Metadata
+    ↓
+ArtifactService
+    ↓
+Artifact REST API
 
