@@ -545,3 +545,56 @@ def test_service_workload_accepts_service_port():
     )
 
     assert response.status_code == 200
+
+
+def test_managed_inference_endpoint(monkeypatch) -> None:
+    from compute_fabric.api import main
+    from compute_fabric.managed_inference.provider import (
+        ManagedInferenceResult,
+    )
+
+    class FakeManagedInferenceService:
+        def invoke(self, provider_name, request):
+            assert provider_name == "bedrock"
+            assert request.model_id == "example-model"
+            assert request.prompt == "Explain GPU scheduling."
+            assert request.max_tokens == 64
+            assert request.temperature == 0.1
+
+            return ManagedInferenceResult(
+                provider="bedrock",
+                model_id=request.model_id,
+                output_text="Managed response",
+                input_tokens=10,
+                output_tokens=5,
+                total_tokens=15,
+                request_id="request-001",
+            )
+
+    monkeypatch.setattr(
+        main,
+        "create_managed_inference_service",
+        lambda environment: FakeManagedInferenceService(),
+    )
+
+    response = client.post(
+        "/managed-inference/invoke",
+        json={
+            "provider": "bedrock",
+            "model_id": "example-model",
+            "prompt": "Explain GPU scheduling.",
+            "max_tokens": 64,
+            "temperature": 0.1,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "bedrock",
+        "model_id": "example-model",
+        "output_text": "Managed response",
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+        "request_id": "request-001",
+    }

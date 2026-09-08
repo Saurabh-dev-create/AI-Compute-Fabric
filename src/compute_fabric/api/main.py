@@ -20,6 +20,10 @@ from compute_fabric.execution.workload_reconciler_runtime import (
 )
 from compute_fabric.execution.workload_spec import WorkloadSpec
 from compute_fabric.gpu.gpu_inventory import GPU, GPUInventory
+from compute_fabric.managed_inference.factory import (
+    create_managed_inference_service,
+)
+from compute_fabric.managed_inference.provider import ManagedInferenceRequest
 from compute_fabric.gpu.gpu_manager import GPUManager
 from compute_fabric.gpu.gpu_report import GPUReport
 from compute_fabric.gpu.gpu_report_reconciler import GPUReportReconciler
@@ -91,6 +95,24 @@ class JobResponse(BaseModel):
     node_id: str | None = None
     workload_id: str | None = None
     score: float | None = None
+
+
+class ManagedInferenceAPIRequest(BaseModel):
+    provider: str = "bedrock"
+    model_id: str = Field(min_length=1)
+    prompt: str = Field(min_length=1)
+    max_tokens: int = Field(default=256, gt=0)
+    temperature: float = Field(default=0.2, ge=0.0, le=1.0)
+
+
+class ManagedInferenceAPIResponse(BaseModel):
+    provider: str
+    model_id: str
+    output_text: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    request_id: str | None = None
 
 
 class GPUReportRequest(BaseModel):
@@ -544,4 +566,40 @@ def cancel_job(job_id: str) -> JobResponse:
         gpu_id=job.gpu_id,
         node_id=job.node_id,
         workload_id=job.workload_id,
+    )
+
+
+@app.post(
+    "/managed-inference/invoke",
+    response_model=ManagedInferenceAPIResponse,
+)
+def invoke_managed_inference(
+    request: ManagedInferenceAPIRequest,
+) -> ManagedInferenceAPIResponse:
+    try:
+        service = create_managed_inference_service(os.environ)
+
+        result = service.invoke(
+            request.provider,
+            ManagedInferenceRequest(
+                model_id=request.model_id,
+                prompt=request.prompt,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return ManagedInferenceAPIResponse(
+        provider=result.provider,
+        model_id=result.model_id,
+        output_text=result.output_text,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        total_tokens=result.total_tokens,
+        request_id=result.request_id,
     )

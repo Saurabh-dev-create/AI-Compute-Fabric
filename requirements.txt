@@ -7,3 +7,4 @@ pytest
 httpx
 alembic
 prometheus-client
+boto3
