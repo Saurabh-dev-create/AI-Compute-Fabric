@@ -233,6 +233,8 @@ Its main components include:
 ### Platform API
 
 Provides the external boundary for workload submission, lifecycle operations, artifact access, managed inference, and operational integrations.
+docs/screenshots/integrated-control-plane-validation.png
+docs/screenshots/eks-application-stack.png
 
 ### Job Orchestrator
 
@@ -1357,6 +1359,10 @@ MCP integration
 ```
 
 At the final implementation checkpoint:
+
+docs/screenshots/full-test-suite-156-passed.png
+
+Automated Validation: 156 tests covering scheduling, GPU telemetry, persistence, artifact storage/publication, workload execution, and reconciliation — all passing
 
 ```text
 156 tests passed
