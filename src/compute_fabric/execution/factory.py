@@ -49,6 +49,20 @@ def create_workload_runner(
     if service_account_name is not None:
         service_account_name = service_account_name.strip() or None
 
+    artifact_bucket = environment.get(
+        "COMPUTE_FABRIC_ARTIFACT_BUCKET"
+    )
+
+    if artifact_bucket is not None:
+        artifact_bucket = artifact_bucket.strip() or None
+
+    api_url = environment.get(
+        "COMPUTE_FABRIC_API_URL"
+    )
+
+    if api_url is not None:
+        api_url = api_url.strip() or None
+
     config.load_incluster_config()
 
     return KubernetesWorkloadRunner(
@@ -57,6 +71,8 @@ def create_workload_runner(
         core_api=client.CoreV1Api(),
         namespace=namespace,
         service_account_name=service_account_name,
+        artifact_bucket=artifact_bucket,
+        api_url=api_url,
     )
 
 

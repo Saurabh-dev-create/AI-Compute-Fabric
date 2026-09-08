@@ -2,6 +2,8 @@ from pathlib import Path
 
 import torch
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from publish_artifact import publish_qlora_artifact
+
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -177,6 +179,12 @@ def main() -> None:
     tokenizer.save_pretrained(OUTPUT_DIR)
 
     print(f"adapter_saved={OUTPUT_DIR}")
+
+    publish_qlora_artifact(
+        local_path=OUTPUT_DIR,
+        base_model=MODEL_ID,
+    )
+
     print("QLORA_TRAINING_COMPLETED")
 
 

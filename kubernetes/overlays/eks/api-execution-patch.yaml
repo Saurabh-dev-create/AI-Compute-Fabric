@@ -15,5 +15,9 @@ spec:
               value: default
             - name: COMPUTE_FABRIC_WORKLOAD_SERVICE_ACCOUNT
               value: compute-fabric-workload
+            - name: COMPUTE_FABRIC_ARTIFACT_BUCKET
+              value: ai-compute-fabric-dev-artifacts-882640845424-ap-south-1
+            - name: COMPUTE_FABRIC_API_URL
+              value: http://compute-fabric-api:8000
             - name: COMPUTE_FABRIC_SIMULATED_GPU_INVENTORY_ENABLED
               value: "false"

@@ -18,12 +18,16 @@ class KubernetesWorkloadRunner:
         core_api: client.CoreV1Api | None = None,
         namespace: str = "default",
         service_account_name: str | None = None,
+        artifact_bucket: str | None = None,
+        api_url: str | None = None,
     ) -> None:
         self.batch_api = batch_api
         self.apps_api = apps_api
         self.core_api = core_api
         self.namespace = namespace
         self.service_account_name = service_account_name
+        self.artifact_bucket = artifact_bucket
+        self.api_url = api_url
 
     def launch(
         self,
@@ -44,7 +48,10 @@ class KubernetesWorkloadRunner:
     ) -> WorkloadExecution:
         workload_name = self._workload_name(job.id)
 
-        container = self._container(spec)
+        container = self._container(
+            spec,
+            job_id=job.id,
+        )
 
         pod_spec = self._pod_spec(
             container=container,
@@ -102,6 +109,7 @@ class KubernetesWorkloadRunner:
 
         container = self._container(
             spec,
+            job_id=job.id,
             service_port=spec.service_port,
         )
 
@@ -173,9 +181,10 @@ class KubernetesWorkloadRunner:
             node_id=decision.node_id,
         )
 
-    @staticmethod
     def _container(
+        self,
         spec: WorkloadSpec,
+        job_id: str,
         service_port: int | None = None,
     ) -> client.V1Container:
         ports = (
@@ -205,11 +214,35 @@ class KubernetesWorkloadRunner:
             else None
         )
 
+        environment = [
+            client.V1EnvVar(
+                name="COMPUTE_FABRIC_JOB_ID",
+                value=job_id,
+            ),
+        ]
+
+        if self.artifact_bucket is not None:
+            environment.append(
+                client.V1EnvVar(
+                    name="COMPUTE_FABRIC_ARTIFACT_BUCKET",
+                    value=self.artifact_bucket,
+                )
+            )
+
+        if self.api_url is not None:
+            environment.append(
+                client.V1EnvVar(
+                    name="COMPUTE_FABRIC_API_URL",
+                    value=self.api_url,
+                )
+            )
+
         return client.V1Container(
             name="workload",
             image=spec.image,
             command=list(spec.command) or None,
             args=list(spec.args) or None,
+            env=environment,
             ports=ports,
             readiness_probe=readiness_probe,
             resources=client.V1ResourceRequirements(

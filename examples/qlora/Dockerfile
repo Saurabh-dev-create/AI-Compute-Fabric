@@ -6,9 +6,11 @@ RUN pip install --no-cache-dir --break-system-packages \
     transformers==4.57.1 \
     peft==0.17.1 \
     accelerate==1.10.1 \
-    bitsandbytes==0.47.0
+    bitsandbytes==0.47.0 \
+    boto3==1.40.30
 
 COPY finetune.py /workload/finetune.py
+COPY publish_artifact.py /workload/publish_artifact.py
 COPY dataset.json /workload/dataset.json
 
 RUN mkdir -p /artifacts/qlora-adapter

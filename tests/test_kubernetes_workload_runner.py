@@ -29,6 +29,8 @@ def test_kubernetes_runner_builds_gpu_job_on_selected_node() -> None:
         batch_api=batch_api,
         namespace="default",
         service_account_name="compute-fabric-workload",
+        artifact_bucket="artifact-bucket",
+        api_url="http://compute-fabric-api:8000",
     )
 
     job = Job(
@@ -78,6 +80,19 @@ def test_kubernetes_runner_builds_gpu_job_on_selected_node() -> None:
     assert container.image == spec.image
     assert container.command == ["sh", "-c"]
     assert container.args == ["nvidia-smi"]
+
+    environment = {
+        item.name: item.value
+        for item in container.env
+    }
+
+    assert environment == {
+        "COMPUTE_FABRIC_JOB_ID": job.id,
+        "COMPUTE_FABRIC_ARTIFACT_BUCKET": "artifact-bucket",
+        "COMPUTE_FABRIC_API_URL": (
+            "http://compute-fabric-api:8000"
+        ),
+    }
 
     assert container.resources.requests == {
         "nvidia.com/gpu": "1",
