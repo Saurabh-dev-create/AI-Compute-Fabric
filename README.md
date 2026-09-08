@@ -282,6 +282,7 @@ Brings persisted control-plane state back into alignment with infrastructure rea
 
 Scheduling was deliberately separated into multiple responsibilities.
 
+
 ```text
 Submission
     ↓
@@ -303,6 +304,11 @@ SchedulingDecision
     ↓
 GPU Allocation
 ```
+### AI-Aware Scheduling to Real GPU Execution
+
+![AI Scheduler to Real GPU](docs/screenshots/scheduler-real-gpu-execution.png)
+
+*End-to-end scheduling proof: AI Compute Fabric selects a real EKS GPU node, materializes a GPU-requesting Kubernetes workload, executes on an NVIDIA Tesla T4, persists the placement, and records the accelerator as logically ALLOCATED.*
 
 The scheduler considers factors including:
 
@@ -331,6 +337,12 @@ The scheduler does **not** call Kubernetes.
 Its output is a placement decision.
 
 Execution occurs afterward through the workload-runner boundary.
+
+### Scheduling and Persistent Job State
+
+![Scheduling and Persistent Job State](docs/screenshots/job-scheduling-persistence.png)
+
+*Control-plane validation showing a submitted job progressing to SCHEDULED with GPU/node placement and the scheduling result subsequently retrieved from persistent job state.*
 
 ---
 
@@ -395,6 +407,11 @@ JobRepository
     ├── InMemoryJobRepository
     └── PostgresJobRepository
 ```
+### Durable Control-Plane Persistence
+
+![PostgreSQL Persistence Recovery](docs/screenshots/postgres-persistence-recovery.png)
+
+*PostgreSQL-backed control-plane state survives a database Pod restart through persistent Kubernetes storage, with the previously scheduled job recovered and API health/readiness restored.*
 
 PostgreSQL provides durable control-plane state for real deployments.
 
@@ -480,6 +497,12 @@ The control plane was deployed and validated on real AWS infrastructure.
 
 Infrastructure included:
 
+### Real NVIDIA Tesla T4 on Amazon EKS
+
+![Real NVIDIA Tesla T4 on EKS](docs/screenshots/eks-real-tesla-t4.png)
+
+*Real Amazon EKS GPU node validation showing an NVIDIA Tesla T4, CUDA-capable NVIDIA runtime, and one GPU exposed as Kubernetes capacity and allocatable compute.*
+
 ```text
 AWS
 │
@@ -530,6 +553,12 @@ Local development can use simulated GPU inventory.
 The real EKS environment does not.
 
 A GPU Agent runs against the Kubernetes environment and publishes real accelerator information to the control plane.
+
+### Dynamic GPU Discovery into the Control Plane
+
+![Dynamic GPU Discovery](docs/screenshots/dynamic-gpu-discovery.png)
+
+*The permanent GPU Agent reads real Tesla T4 telemetry, continuously reports it to AI Compute Fabric, and populates the control-plane GPU inventory with VRAM, utilization, temperature, node placement, and availability state.*
 
 ```text
 NVIDIA GPU
@@ -617,6 +646,11 @@ COMPLETED
      ↓
 GPU Released
 ```
+### Real PyTorch Training on NVIDIA Tesla T4
+
+![Real PyTorch GPU Training](docs/screenshots/pytorch-real-t4-training.png)
+
+*Real PyTorch/CUDA training scheduled through AI Compute Fabric on a Tesla T4, showing decreasing training loss, terminal control-plane reconciliation to COMPLETED, and accelerator release back to AVAILABLE capacity.*
 
 The workload executed successfully on the real NVIDIA Tesla T4 and demonstrated decreasing training loss.
 
