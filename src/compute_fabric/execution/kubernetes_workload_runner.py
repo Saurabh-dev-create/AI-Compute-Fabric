@@ -125,6 +125,7 @@ class KubernetesWorkloadRunner:
                     match_labels=labels,
                 ),
                 template=template,
+                progress_deadline_seconds=1800,
             ),
         )
 
@@ -187,12 +188,28 @@ class KubernetesWorkloadRunner:
             else None
         )
 
+        readiness_probe = (
+            client.V1Probe(
+                tcp_socket=client.V1TCPSocketAction(
+                    port=service_port,
+                ),
+                initial_delay_seconds=1,
+                period_seconds=5,
+                timeout_seconds=1,
+                failure_threshold=6,
+                success_threshold=1,
+            )
+            if service_port is not None
+            else None
+        )
+
         return client.V1Container(
             name="workload",
             image=spec.image,
             command=list(spec.command) or None,
             args=list(spec.args) or None,
             ports=ports,
+            readiness_probe=readiness_probe,
             resources=client.V1ResourceRequirements(
                 requests={
                     "nvidia.com/gpu": "1",

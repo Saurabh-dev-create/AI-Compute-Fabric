@@ -206,6 +206,7 @@ def test_kubernetes_runner_builds_gpu_service_on_selected_node() -> None:
     deployment = apps_api.body
     assert deployment.metadata.name == "compute-fabric-vllm-service-001"
     assert deployment.spec.replicas == 1
+    assert deployment.spec.progress_deadline_seconds == 1800
 
     pod_spec = deployment.spec.template.spec
     assert pod_spec.node_name == decision.node_id
@@ -215,6 +216,15 @@ def test_kubernetes_runner_builds_gpu_service_on_selected_node() -> None:
     assert container.image == spec.image
     assert container.args == ["--model", "example/model"]
     assert container.ports[0].container_port == 8000
+
+    assert container.readiness_probe is not None
+    assert container.readiness_probe.tcp_socket.port == 8000
+    assert container.readiness_probe.initial_delay_seconds == 1
+    assert container.readiness_probe.period_seconds == 5
+    assert container.readiness_probe.timeout_seconds == 1
+    assert container.readiness_probe.failure_threshold == 6
+    assert container.readiness_probe.success_threshold == 1
+
     assert container.resources.requests == {
         "nvidia.com/gpu": "1",
     }
