@@ -28,6 +28,7 @@ def test_kubernetes_runner_builds_gpu_job_on_selected_node() -> None:
     runner = KubernetesWorkloadRunner(
         batch_api=batch_api,
         namespace="default",
+        service_account_name="compute-fabric-workload",
     )
 
     job = Job(
@@ -67,6 +68,10 @@ def test_kubernetes_runner_builds_gpu_job_on_selected_node() -> None:
 
     assert pod_spec.node_name == decision.node_id
     assert pod_spec.restart_policy == "Never"
+    assert (
+        pod_spec.service_account_name
+        == "compute-fabric-workload"
+    )
 
     container = pod_spec.containers[0]
 

@@ -13,5 +13,7 @@ spec:
               value: kubernetes
             - name: COMPUTE_FABRIC_WORKLOAD_NAMESPACE
               value: default
+            - name: COMPUTE_FABRIC_WORKLOAD_SERVICE_ACCOUNT
+              value: compute-fabric-workload
             - name: COMPUTE_FABRIC_SIMULATED_GPU_INVENTORY_ENABLED
               value: "false"

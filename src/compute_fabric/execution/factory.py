@@ -42,6 +42,13 @@ def create_workload_runner(
             "COMPUTE_FABRIC_WORKLOAD_NAMESPACE must not be empty"
         )
 
+    service_account_name = environment.get(
+        "COMPUTE_FABRIC_WORKLOAD_SERVICE_ACCOUNT"
+    )
+
+    if service_account_name is not None:
+        service_account_name = service_account_name.strip() or None
+
     config.load_incluster_config()
 
     return KubernetesWorkloadRunner(
@@ -49,6 +56,7 @@ def create_workload_runner(
         apps_api=client.AppsV1Api(),
         core_api=client.CoreV1Api(),
         namespace=namespace,
+        service_account_name=service_account_name,
     )
 
 

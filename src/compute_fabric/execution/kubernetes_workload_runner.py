@@ -17,11 +17,13 @@ class KubernetesWorkloadRunner:
         apps_api: client.AppsV1Api | None = None,
         core_api: client.CoreV1Api | None = None,
         namespace: str = "default",
+        service_account_name: str | None = None,
     ) -> None:
         self.batch_api = batch_api
         self.apps_api = apps_api
         self.core_api = core_api
         self.namespace = namespace
+        self.service_account_name = service_account_name
 
     def launch(
         self,
@@ -220,8 +222,8 @@ class KubernetesWorkloadRunner:
             ),
         )
 
-    @staticmethod
     def _pod_spec(
+        self,
         container: client.V1Container,
         node_id: str,
         restart_policy: str,
@@ -229,6 +231,7 @@ class KubernetesWorkloadRunner:
         return client.V1PodSpec(
             restart_policy=restart_policy,
             node_name=node_id,
+            service_account_name=self.service_account_name,
             tolerations=[
                 client.V1Toleration(
                     key="dedicated",
