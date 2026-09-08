@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field, model_validator
 
+from compute_fabric.artifacts.artifact import ModelArtifact
+from compute_fabric.artifacts.postgres_repository import (
+    PostgresArtifactRepository,
+)
+from compute_fabric.artifacts.service import ArtifactService
 from compute_fabric.common.enums import GPUStatus
 from compute_fabric.execution.factory import (
     create_workload_observer,
@@ -97,6 +102,36 @@ class JobResponse(BaseModel):
     node_id: str | None = None
     workload_id: str | None = None
     score: float | None = None
+
+
+class ArtifactRequest(BaseModel):
+    artifact_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    artifact_type: str = Field(min_length=1)
+    storage_uri: str = Field(min_length=1)
+    base_model: str | None = None
+
+
+class ArtifactResponse(BaseModel):
+    artifact_id: str
+    job_id: str
+    artifact_type: str
+    storage_uri: str
+    base_model: str | None = None
+    created_at: datetime
+
+
+def _artifact_response(
+    artifact: ModelArtifact,
+) -> ArtifactResponse:
+    return ArtifactResponse(
+        artifact_id=artifact.id,
+        job_id=artifact.job_id,
+        artifact_type=artifact.artifact_type,
+        storage_uri=artifact.storage_uri,
+        base_model=artifact.base_model,
+        created_at=artifact.created_at,
+    )
 
 
 class ManagedInferenceAPIRequest(BaseModel):
@@ -209,6 +244,9 @@ workload_terminator = create_workload_terminator(os.environ)
 
 repository = PostgresJobRepository(DATABASE_URL)
 job_manager = JobManager(repository)
+
+artifact_repository = PostgresArtifactRepository(DATABASE_URL)
+artifact_service = ArtifactService(artifact_repository)
 
 mcp_server = create_devops_mcp_server()
 mcp_service = MCPService(mcp_server)
@@ -340,6 +378,59 @@ def ready(response: Response) -> dict[str, str]:
         return {"status": "not_ready"}
 
     return {"status": "ready"}
+
+
+@app.post(
+    "/artifacts",
+    response_model=ArtifactResponse,
+    status_code=201,
+)
+def register_artifact(
+    request: ArtifactRequest,
+) -> ArtifactResponse:
+    artifact = ModelArtifact(
+        id=request.artifact_id,
+        job_id=request.job_id,
+        artifact_type=request.artifact_type,
+        storage_uri=request.storage_uri,
+        base_model=request.base_model,
+        created_at=datetime.now(UTC),
+    )
+
+    artifact_service.register(artifact)
+
+    return _artifact_response(artifact)
+
+
+@app.get(
+    "/artifacts/{artifact_id}",
+    response_model=ArtifactResponse,
+)
+def get_artifact(
+    artifact_id: str,
+) -> ArtifactResponse:
+    artifact = artifact_service.get(artifact_id)
+
+    if artifact is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Artifact not found",
+        )
+
+    return _artifact_response(artifact)
+
+
+@app.get(
+    "/jobs/{job_id}/artifacts",
+    response_model=list[ArtifactResponse],
+)
+def list_job_artifacts(
+    job_id: str,
+) -> list[ArtifactResponse]:
+    return [
+        _artifact_response(artifact)
+        for artifact in artifact_service.list_for_job(job_id)
+    ]
 
 
 @app.get("/metrics")
