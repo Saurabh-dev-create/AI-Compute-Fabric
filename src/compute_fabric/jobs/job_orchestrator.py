@@ -156,6 +156,9 @@ class JobOrchestrator:
         if job is None:
             return False
 
+        if not self._terminate_service_workload(job):
+            return False
+
         if job.gpu_id is not None:
             released = self.gpu_manager.release_gpu(
                 job.gpu_id,
@@ -176,6 +179,9 @@ class JobOrchestrator:
         if job is None:
             return False
 
+        if not self._terminate_service_workload(job):
+            return False
+
         if job.gpu_id is not None:
             released = self.gpu_manager.release_gpu(
                 job.gpu_id,
@@ -187,6 +193,24 @@ class JobOrchestrator:
 
         self.state_manager.fail(job)
         self.job_manager.update_job(job)
+
+        return True
+
+    def _terminate_service_workload(self, job: Job) -> bool:
+        if (
+            job.workload_id is None
+            or job.workload_spec is None
+            or job.workload_spec.execution_mode != "service"
+        ):
+            return True
+
+        if self.workload_terminator is None:
+            return False
+
+        self.workload_terminator.terminate(
+            job.workload_id,
+            "service",
+        )
 
         return True
 
