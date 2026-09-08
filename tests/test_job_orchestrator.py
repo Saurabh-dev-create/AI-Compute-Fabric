@@ -420,12 +420,12 @@ class FakeWorkloadObserver:
         self.status = status
         self.calls = []
 
-    def observe(self, workload_id):
+    def observe(self, workload_id, execution_mode="batch"):
         from compute_fabric.execution.workload_observer import (
             WorkloadObservation,
         )
 
-        self.calls.append(workload_id)
+        self.calls.append((workload_id, execution_mode))
 
         return WorkloadObservation(
             workload_id=workload_id,
@@ -518,7 +518,9 @@ def test_reconcile_succeeded_completes_and_releases_gpu_once():
 
     assert stored_job.status == JobStatus.COMPLETED
     assert gpu.free_vram_gb == 64
-    assert observer.calls == ["compute-fabric-job-observed-001"]
+    assert observer.calls == [
+        ("compute-fabric-job-observed-001", "batch")
+    ]
 
 
 def test_reconcile_failed_fails_and_releases_gpu_once():
@@ -542,4 +544,157 @@ def test_reconcile_failed_fails_and_releases_gpu_once():
     assert orchestrator.reconcile_workload(job.id) is True
 
     assert gpu.free_vram_gb == 64
-    assert observer.calls == ["compute-fabric-job-observed-001"]
+    assert observer.calls == [
+        ("compute-fabric-job-observed-001", "batch")
+    ]
+
+
+class FakeWorkloadTerminator:
+    def __init__(self, should_fail=False):
+        self.should_fail = should_fail
+        self.calls = []
+
+    def terminate(
+        self,
+        workload_id,
+        execution_mode="batch",
+    ):
+        self.calls.append((workload_id, execution_mode))
+
+        if self.should_fail:
+            raise RuntimeError("workload termination failed")
+
+
+def prepare_launched_service_job(
+    orchestrator,
+):
+    from compute_fabric.execution.workload_spec import WorkloadSpec
+
+    job = Job(
+        id="service-cancel-001",
+        job_type="inference",
+        gpu_type="A100",
+        min_vram_gb=40,
+        priority=5,
+        workload_spec=WorkloadSpec(
+            image="example/vllm:latest",
+            execution_mode="service",
+            service_port=8000,
+        ),
+    )
+
+    decision = orchestrator.submit_and_schedule(job)
+    assert decision is not None
+
+    job.workload_id = "compute-fabric-service-cancel-001"
+    orchestrator.job_manager.update_job(job)
+
+    return job
+
+
+def test_cancel_launched_service_terminates_before_gpu_release():
+    terminator = FakeWorkloadTerminator()
+
+    orchestrator, gpu_manager = create_orchestrator()
+    orchestrator.workload_terminator = terminator
+
+    job = prepare_launched_service_job(orchestrator)
+
+    gpu = gpu_manager.get_gpu("gpu-001")
+    assert gpu is not None
+    assert gpu.status == GPUStatus.ALLOCATED
+    assert gpu.free_vram_gb == 24
+
+    original_release_gpu = gpu_manager.release_gpu
+    events = []
+
+    def tracked_release_gpu(gpu_id, vram_gb):
+        events.append("release")
+        assert terminator.calls == [
+            (
+                "compute-fabric-service-cancel-001",
+                "service",
+            )
+        ]
+        return original_release_gpu(gpu_id, vram_gb)
+
+    gpu_manager.release_gpu = tracked_release_gpu
+
+    original_terminate = terminator.terminate
+
+    def tracked_terminate(workload_id, execution_mode="batch"):
+        events.append("terminate")
+        return original_terminate(workload_id, execution_mode)
+
+    terminator.terminate = tracked_terminate
+
+    assert orchestrator.cancel_job(job.id) is True
+
+    assert events == ["terminate", "release"]
+    assert terminator.calls == [
+        (
+            "compute-fabric-service-cancel-001",
+            "service",
+        )
+    ]
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+
+    assert stored_job is not None
+    assert stored_job.status == JobStatus.CANCELLED
+    assert gpu.status == GPUStatus.AVAILABLE
+    assert gpu.free_vram_gb == 64
+
+
+def test_cancel_termination_failure_preserves_gpu_and_job_state():
+    import pytest
+
+    terminator = FakeWorkloadTerminator(should_fail=True)
+
+    orchestrator, gpu_manager = create_orchestrator()
+    orchestrator.workload_terminator = terminator
+
+    job = prepare_launched_service_job(orchestrator)
+
+    gpu = gpu_manager.get_gpu("gpu-001")
+    assert gpu is not None
+
+    with pytest.raises(
+        RuntimeError,
+        match="workload termination failed",
+    ):
+        orchestrator.cancel_job(job.id)
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+
+    assert stored_job is not None
+    assert stored_job.status == JobStatus.SCHEDULED
+
+    assert gpu.status == GPUStatus.ALLOCATED
+    assert gpu.free_vram_gb == 24
+
+    assert terminator.calls == [
+        (
+            "compute-fabric-service-cancel-001",
+            "service",
+        )
+    ]
+
+
+def test_cancel_launched_workload_requires_terminator():
+    orchestrator, gpu_manager = create_orchestrator()
+
+    job = prepare_launched_service_job(orchestrator)
+
+    assert orchestrator.workload_terminator is None
+    assert orchestrator.cancel_job(job.id) is False
+
+    stored_job = orchestrator.job_manager.get_job(job.id)
+    gpu = gpu_manager.get_gpu("gpu-001")
+
+    assert stored_job is not None
+    assert stored_job.status == JobStatus.SCHEDULED
+
+    assert gpu is not None
+    assert gpu.status == GPUStatus.ALLOCATED
+    assert gpu.free_vram_gb == 24

@@ -36,3 +36,12 @@ def test_workload_spec_defaults_to_batch_execution_mode() -> None:
     )
 
     assert spec.execution_mode == "batch"
+
+def test_workload_spec_supports_service_port() -> None:
+    spec = WorkloadSpec(
+        image="example/vllm:latest",
+        execution_mode="service",
+        service_port=8000,
+    )
+
+    assert spec.service_port == 8000

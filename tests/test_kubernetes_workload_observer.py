@@ -55,3 +55,73 @@ def test_observe_maps_kubernetes_job_status(
         name="compute-fabric-test",
         namespace="ai-workloads",
     )
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (
+            SimpleNamespace(
+                ready_replicas=None,
+                available_replicas=None,
+                unavailable_replicas=1,
+                conditions=[],
+            ),
+            WorkloadRuntimeStatus.PENDING,
+        ),
+        (
+            SimpleNamespace(
+                ready_replicas=1,
+                available_replicas=1,
+                unavailable_replicas=0,
+                conditions=[],
+            ),
+            WorkloadRuntimeStatus.RUNNING,
+        ),
+        (
+            SimpleNamespace(
+                ready_replicas=0,
+                available_replicas=0,
+                unavailable_replicas=1,
+                conditions=[
+                    SimpleNamespace(
+                        type="Progressing",
+                        status="False",
+                        reason="ProgressDeadlineExceeded",
+                    )
+                ],
+            ),
+            WorkloadRuntimeStatus.FAILED,
+        ),
+    ],
+)
+def test_observe_maps_kubernetes_deployment_status(
+    status,
+    expected,
+) -> None:
+    batch_api = Mock()
+    apps_api = Mock()
+
+    apps_api.read_namespaced_deployment_status.return_value = (
+        SimpleNamespace(status=status)
+    )
+
+    observer = KubernetesWorkloadObserver(
+        batch_api=batch_api,
+        apps_api=apps_api,
+        namespace="ai-workloads",
+    )
+
+    observation = observer.observe(
+        "compute-fabric-vllm",
+        "service",
+    )
+
+    assert observation.workload_id == "compute-fabric-vllm"
+    assert observation.status == expected
+
+    apps_api.read_namespaced_deployment_status.assert_called_once_with(
+        name="compute-fabric-vllm",
+        namespace="ai-workloads",
+    )
+    batch_api.read_namespaced_job_status.assert_not_called()

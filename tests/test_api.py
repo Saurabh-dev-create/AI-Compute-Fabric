@@ -507,3 +507,41 @@ def test_submit_workload_returns_persisted_workload_id(monkeypatch):
         stored_job.workload_id
         == "compute-fabric-api-workload-response-001"
     )
+
+def test_service_workload_requires_service_port():
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-service-missing-port",
+            "job_type": "inference",
+            "gpu_type": "T4",
+            "min_vram_gb": 4,
+            "priority": 1,
+            "workload": {
+                "image": "example/vllm:latest",
+                "execution_mode": "service",
+            },
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_service_workload_accepts_service_port():
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "api-service-with-port",
+            "job_type": "inference",
+            "gpu_type": "T4",
+            "min_vram_gb": 4,
+            "priority": 1,
+            "workload": {
+                "image": "example/vllm:latest",
+                "execution_mode": "service",
+                "service_port": 8000,
+            },
+        },
+    )
+
+    assert response.status_code == 200

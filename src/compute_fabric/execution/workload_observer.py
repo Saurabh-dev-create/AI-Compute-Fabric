@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol
+from typing import Literal, Protocol
 
 
 class WorkloadRuntimeStatus(str, Enum):
@@ -20,5 +20,6 @@ class WorkloadObserver(Protocol):
     def observe(
         self,
         workload_id: str,
+        execution_mode: Literal["batch", "service"] = "batch",
     ) -> WorkloadObservation:
         ...

@@ -8,3 +8,4 @@ class WorkloadSpec:
     command: tuple[str, ...] = ()
     args: tuple[str, ...] = ()
     execution_mode: Literal["batch", "service"] = "batch"
+    service_port: int | None = None

@@ -6,12 +6,13 @@ from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from compute_fabric.common.enums import GPUStatus
 from compute_fabric.execution.factory import (
     create_workload_observer,
     create_workload_runner,
+    create_workload_terminator,
 )
 from compute_fabric.execution.workload_reconciler import WorkloadReconciler
 from compute_fabric.execution.workload_reconciler_runtime import (
@@ -63,6 +64,15 @@ class WorkloadRequest(BaseModel):
     command: list[str] = Field(default_factory=list)
     args: list[str] = Field(default_factory=list)
     execution_mode: Literal["batch", "service"] = "batch"
+    service_port: int | None = Field(default=None, gt=0, le=65535)
+
+    @model_validator(mode="after")
+    def validate_service_port(self) -> "WorkloadRequest":
+        if self.execution_mode == "service" and self.service_port is None:
+            raise ValueError(
+                "service_port is required for service workloads"
+            )
+        return self
 
 
 class JobRequest(BaseModel):
@@ -166,6 +176,7 @@ queue_manager = QueueManager(queue, admission_controller)
 state_manager = JobStateManager()
 workload_runner = create_workload_runner(os.environ)
 workload_observer = create_workload_observer(os.environ)
+workload_terminator = create_workload_terminator(os.environ)
 
 repository = PostgresJobRepository(DATABASE_URL)
 job_manager = JobManager(repository)
@@ -185,6 +196,7 @@ orchestrator = JobOrchestrator(
     gpu_manager=gpu_manager,
     workload_runner=workload_runner,
     workload_observer=workload_observer,
+    workload_terminator=workload_terminator,
 )
 
 WORKLOAD_RECONCILE_INTERVAL_SECONDS = float(
@@ -355,6 +367,7 @@ def submit_job(request: JobRequest) -> JobResponse:
                 command=tuple(request.workload.command),
                 args=tuple(request.workload.args),
                 execution_mode=request.workload.execution_mode,
+                service_port=request.workload.service_port,
             )
             if request.workload is not None
             else None

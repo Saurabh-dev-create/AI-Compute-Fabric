@@ -66,6 +66,9 @@ class PostgresJobRepository(JobRepository):
                                     "execution_mode": (
                                         job.workload_spec.execution_mode
                                     ),
+                                    "service_port": (
+                                        job.workload_spec.service_port
+                                    ),
                                 }
                             )
                             if job.workload_spec is not None
@@ -151,6 +154,7 @@ class PostgresJobRepository(JobRepository):
                     "execution_mode",
                     "batch",
                 ),
+                service_port=workload_data.get("service_port"),
             )
             if workload_data is not None
             else None

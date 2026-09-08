@@ -8,6 +8,7 @@ from compute_fabric.execution.workload_runner import (
     WorkloadRunner,
 )
 from compute_fabric.execution.workload_spec import WorkloadSpec
+from compute_fabric.execution.workload_terminator import WorkloadTerminator
 from compute_fabric.gpu.gpu_manager import GPUManager
 from compute_fabric.jobs.job_manager import Job, JobManager
 from compute_fabric.jobs.job_state import JobStateManager
@@ -27,6 +28,7 @@ class JobOrchestrator:
         gpu_manager: GPUManager,
         workload_runner: WorkloadRunner | None = None,
         workload_observer: WorkloadObserver | None = None,
+        workload_terminator: WorkloadTerminator | None = None,
     ) -> None:
         self.job_manager = job_manager
         self.queue_manager = queue_manager
@@ -36,6 +38,7 @@ class JobOrchestrator:
         self.gpu_manager = gpu_manager
         self.workload_runner = workload_runner
         self.workload_observer = workload_observer
+        self.workload_terminator = workload_terminator
 
     def submit_and_schedule(self, job: Job) -> SchedulingDecision | None:
         self.job_manager.submit_job(job)       
@@ -104,7 +107,16 @@ class JobOrchestrator:
         }:
             return True
 
-        observation = self.workload_observer.observe(job.workload_id)
+        execution_mode = (
+            job.workload_spec.execution_mode
+            if job.workload_spec is not None
+            else "batch"
+        )
+
+        observation = self.workload_observer.observe(
+            job.workload_id,
+            execution_mode,
+        )
 
         if observation.status == WorkloadRuntimeStatus.PENDING:
             return True
@@ -183,6 +195,21 @@ class JobOrchestrator:
 
         if job is None:
             return False
+
+        if job.workload_id is not None:
+            if self.workload_terminator is None:
+                return False
+
+            execution_mode = (
+                job.workload_spec.execution_mode
+                if job.workload_spec is not None
+                else "batch"
+            )
+
+            self.workload_terminator.terminate(
+                job.workload_id,
+                execution_mode,
+            )
 
         if job.gpu_id is not None:
             released = self.gpu_manager.release_gpu(

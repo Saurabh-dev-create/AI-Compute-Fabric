@@ -41,11 +41,23 @@ def test_kubernetes_backend_builds_runner(monkeypatch):
     )
 
     fake_batch_api = object()
+    fake_apps_api = object()
+    fake_core_api = object()
 
     monkeypatch.setattr(
         factory.client,
         "BatchV1Api",
         lambda: fake_batch_api,
+    )
+    monkeypatch.setattr(
+        factory.client,
+        "AppsV1Api",
+        lambda: fake_apps_api,
+    )
+    monkeypatch.setattr(
+        factory.client,
+        "CoreV1Api",
+        lambda: fake_core_api,
     )
 
     runner = factory.create_workload_runner(
@@ -61,6 +73,8 @@ def test_kubernetes_backend_builds_runner(monkeypatch):
         factory.KubernetesWorkloadRunner,
     )
     assert runner.batch_api is fake_batch_api
+    assert runner.apps_api is fake_apps_api
+    assert runner.core_api is fake_core_api
     assert runner.namespace == "ai-workloads"
 
 
@@ -72,11 +86,23 @@ def test_kubernetes_backend_defaults_namespace(monkeypatch):
     )
 
     fake_batch_api = object()
+    fake_apps_api = object()
+    fake_core_api = object()
 
     monkeypatch.setattr(
         factory.client,
         "BatchV1Api",
         lambda: fake_batch_api,
+    )
+    monkeypatch.setattr(
+        factory.client,
+        "AppsV1Api",
+        lambda: fake_apps_api,
+    )
+    monkeypatch.setattr(
+        factory.client,
+        "CoreV1Api",
+        lambda: fake_core_api,
     )
 
     runner = factory.create_workload_runner(
@@ -114,6 +140,7 @@ def test_create_workload_observer_kubernetes(monkeypatch):
     from compute_fabric.execution import factory
 
     batch_api = Mock()
+    apps_api = Mock()
 
     monkeypatch.setattr(
         factory.config,
@@ -125,6 +152,11 @@ def test_create_workload_observer_kubernetes(monkeypatch):
         "BatchV1Api",
         Mock(return_value=batch_api),
     )
+    monkeypatch.setattr(
+        factory.client,
+        "AppsV1Api",
+        Mock(return_value=apps_api),
+    )
 
     observer = factory.create_workload_observer(
         {
@@ -135,10 +167,12 @@ def test_create_workload_observer_kubernetes(monkeypatch):
 
     assert observer is not None
     assert observer.batch_api is batch_api
+    assert observer.apps_api is apps_api
     assert observer.namespace == "ai-workloads"
 
     factory.config.load_incluster_config.assert_called_once_with()
     factory.client.BatchV1Api.assert_called_once_with()
+    factory.client.AppsV1Api.assert_called_once_with()
 
 
 def test_create_workload_observer_rejects_unknown_backend():

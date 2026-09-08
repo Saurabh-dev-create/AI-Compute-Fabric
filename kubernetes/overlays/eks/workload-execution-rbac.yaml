@@ -16,6 +16,25 @@ rules:
     verbs:
       - create
       - get
+      - delete
+
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - deployments/status
+    verbs:
+      - create
+      - get
+      - delete
+
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - create
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

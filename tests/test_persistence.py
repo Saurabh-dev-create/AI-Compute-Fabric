@@ -29,6 +29,7 @@ def test_save_and_get_job():
             command=("sh", "-c"),
             args=("nvidia-smi",),
             execution_mode="service",
+            service_port=8000,
         ),
     )
 
@@ -52,6 +53,7 @@ def test_save_and_get_job():
         command=("sh", "-c"),
         args=("nvidia-smi",),
         execution_mode="service",
+        service_port=8000,
     )
 
     repository.delete(job.id)
