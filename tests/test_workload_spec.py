@@ -20,3 +20,19 @@ def test_workload_spec_command_and_args_are_optional() -> None:
 
     assert spec.command == ()
     assert spec.args == ()
+
+def test_workload_spec_supports_service_execution_mode() -> None:
+    spec = WorkloadSpec(
+        image="example/vllm:latest",
+        execution_mode="service",
+    )
+
+    assert spec.execution_mode == "service"
+
+
+def test_workload_spec_defaults_to_batch_execution_mode() -> None:
+    spec = WorkloadSpec(
+        image="example/training:latest",
+    )
+
+    assert spec.execution_mode == "batch"

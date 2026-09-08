@@ -28,6 +28,7 @@ def test_save_and_get_job():
             image="nvidia/cuda:12.8.1-base-ubuntu24.04",
             command=("sh", "-c"),
             args=("nvidia-smi",),
+            execution_mode="service",
         ),
     )
 
@@ -50,6 +51,7 @@ def test_save_and_get_job():
         image="nvidia/cuda:12.8.1-base-ubuntu24.04",
         command=("sh", "-c"),
         args=("nvidia-smi",),
+        execution_mode="service",
     )
 
     repository.delete(job.id)

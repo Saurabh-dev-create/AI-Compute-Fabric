@@ -63,6 +63,9 @@ class PostgresJobRepository(JobRepository):
                                     "image": job.workload_spec.image,
                                     "command": list(job.workload_spec.command),
                                     "args": list(job.workload_spec.args),
+                                    "execution_mode": (
+                                        job.workload_spec.execution_mode
+                                    ),
                                 }
                             )
                             if job.workload_spec is not None
@@ -144,6 +147,10 @@ class PostgresJobRepository(JobRepository):
                 image=workload_data["image"],
                 command=tuple(workload_data.get("command", [])),
                 args=tuple(workload_data.get("args", [])),
+                execution_mode=workload_data.get(
+                    "execution_mode",
+                    "batch",
+                ),
             )
             if workload_data is not None
             else None

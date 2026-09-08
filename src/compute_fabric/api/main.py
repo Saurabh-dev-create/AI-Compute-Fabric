@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from threading import Event, Thread
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
@@ -61,6 +62,7 @@ class WorkloadRequest(BaseModel):
     image: str = Field(min_length=1)
     command: list[str] = Field(default_factory=list)
     args: list[str] = Field(default_factory=list)
+    execution_mode: Literal["batch", "service"] = "batch"
 
 
 class JobRequest(BaseModel):
@@ -352,6 +354,7 @@ def submit_job(request: JobRequest) -> JobResponse:
                 image=request.workload.image,
                 command=tuple(request.workload.command),
                 args=tuple(request.workload.args),
+                execution_mode=request.workload.execution_mode,
             )
             if request.workload is not None
             else None
