@@ -675,6 +675,12 @@ A successful training job is incomplete if its output disappears with the contai
 
 The project therefore introduced model artifacts as a first-class platform concept.
 
+### Durable QLoRA Artifact Registration and Retrieval
+
+![QLoRA Artifact Lifecycle](docs/screenshots/qlora-artifact-lifecycle.png)
+
+*Real QLoRA adapter registered with the artifact service and retrieved through both artifact- and job-scoped APIs, with durable Amazon S3 storage URI and base-model metadata persisted by the platform.*
+
 ```text
 QLoRA
   ↓
@@ -803,6 +809,12 @@ GPU capacity is therefore not returned to the scheduler before the associated ru
 
 # 16. AWS Bedrock Managed Inference
 
+### Amazon Bedrock Model Availability
+
+![Amazon Bedrock Models](docs/screenshots/bedrock-models-ap-south-1.png)
+
+*Amazon Bedrock foundation models available to the managed-inference path in `ap-south-1`, demonstrating access to multiple model providers through AWS-managed AI infrastructure.*
+
 AI Compute Fabric supports both self-hosted and managed AI compute.
 
 Managed inference uses a provider abstraction:
@@ -818,6 +830,11 @@ BedrockProvider
               ↓
 AWS Bedrock Runtime
 ```
+### Real Bedrock Managed Inference
+
+![Bedrock Managed Inference](docs/screenshots/bedrock-managed-inference.png)
+
+*Real end-to-end managed inference through AI Compute Fabric: the `/managed-inference/invoke` API routes a request through the Bedrock provider to an Anthropic Claude model and returns generated output, token usage, and the AWS request ID.*
 
 Real AWS Bedrock inference was successfully validated.
 
@@ -845,6 +862,12 @@ The platform therefore demonstrates infrastructure patterns for both owning acce
 
 # 17. DevOps MCP
 
+### MCP Tool Discovery
+
+![MCP Tool Discovery](docs/screenshots/mcp-tool-discovery.png)
+
+*DevOps MCP server exposing structured Kubernetes cluster health, workload status, and GPU cluster status tools through the Model Context Protocol.*
+
 AI infrastructure also requires operational visibility and control.
 
 The project includes a DevOps MCP integration using the official Model Context Protocol SDK.
@@ -862,6 +885,12 @@ AI Compute Fabric API
         ↓
        EKS
 ```
+
+### MCP Integration with Real Amazon EKS
+
+![MCP Real EKS Integration](docs/screenshots/mcp-real-eks.png)
+
+*End-to-end MCP validation against the real Amazon EKS cluster, with Kubernetes ground truth compared to MCP-reported cluster health and GPU capacity.*
 
 Implemented tools include:
 
@@ -1251,6 +1280,12 @@ AI-Compute-Fabric/
 The project was developed incrementally with automated tests protecting architectural boundaries as new capabilities were introduced.
 
 Coverage includes areas such as:
+
+### GitHub Actions CI Pipeline
+
+![GitHub Actions CI Pipeline](docs/screenshots/github-actions-ci-pipeline.png)
+
+*Successful GitHub Actions CI pipeline building and publishing the API, GPU Agent, PyTorch training, QLoRA, and vLLM workload images to the container registry.*
 
 ```text
 Admission
