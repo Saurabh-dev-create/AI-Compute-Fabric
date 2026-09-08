@@ -8,3 +8,4 @@ httpx
 alembic
 prometheus-client
 boto3
+mcp>=2,<3

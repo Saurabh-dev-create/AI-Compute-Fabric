@@ -15,6 +15,7 @@ dependencies = [
     "httpx",
     "kubernetes",
     "boto3",
+    "mcp>=2,<3",
 ]
 
 [project.optional-dependencies]
